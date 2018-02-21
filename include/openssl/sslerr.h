@@ -66,6 +66,11 @@ int ERR_load_SSL_strings(void);
 # define SSL_F_GET_CERT_VERIFY_TBS_DATA                   588
 # define SSL_F_NSS_KEYLOG_INT                             500
 # define SSL_F_OPENSSL_INIT_SSL                           342
+# define SSL_F_OPTLS_CHANGE_CIPHER_STATE                  621
+# define SSL_F_OPTLS_FINAL_FINISH_MAC                     622
+# define SSL_F_OPTLS_GENERATE_SECRET                      623
+# define SSL_F_OPTLS_HKDF_EXPAND                          624
+# define SSL_F_OPTLS_SETUP_KEY_BLOCK                      625
 # define SSL_F_OSSL_STATEM_CLIENT13_READ_TRANSITION       436
 # define SSL_F_OSSL_STATEM_CLIENT13_WRITE_TRANSITION      598
 # define SSL_F_OSSL_STATEM_CLIENT_CONSTRUCT_MESSAGE       430

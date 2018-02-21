@@ -225,7 +225,8 @@ EXT_RETURN tls_construct_ctos_session_ticket(SSL *s, WPACKET *pkt,
 
     if (!s->new_session && s->session != NULL
             && s->session->ext.tick != NULL
-            && s->session->ssl_version != TLS1_3_VERSION) {
+            && s->session->ssl_version != TLS1_3_VERSION
+            && s->session->ssl_version != OPTLS_VERSION) {
         ticklen = s->session->ext.ticklen;
     } else if (s->session && s->ext.session_ticket != NULL
                && s->ext.session_ticket->data != NULL) {
@@ -755,7 +756,8 @@ EXT_RETURN tls_construct_ctos_early_data(SSL *s, WPACKET *pkt,
     if (s->psk_use_session_cb != NULL
             && (!s->psk_use_session_cb(s, handmd, &id, &idlen, &psksess)
                 || (psksess != NULL
-                    && psksess->ssl_version != TLS1_3_VERSION))) {
+                    && psksess->ssl_version != TLS1_3_VERSION
+                    && psksess->ssl_version != OPTLS_VERSION))) {
         SSL_SESSION_free(psksess);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_EARLY_DATA,
                  SSL_R_BAD_PSK);
@@ -890,7 +892,8 @@ EXT_RETURN tls_construct_ctos_padding(SSL *s, WPACKET *pkt,
      * If we're going to send a PSK then that will be written out after this
      * extension, so we need to calculate how long it is going to be.
      */
-    if (s->session->ssl_version == TLS1_3_VERSION
+    if ((s->session->ssl_version == TLS1_3_VERSION ||
+                s->session->ssl_version == OPTLS_VERSION)
             && s->session->ext.ticklen != 0
             && s->session->cipher != NULL) {
         const EVP_MD *md = ssl_md(s->session->cipher->algorithm2);
@@ -957,7 +960,8 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
      * If this is an incompatible or new session then we have nothing to resume
      * so don't add this extension.
      */
-    if (s->session->ssl_version != TLS1_3_VERSION
+    if ((s->session->ssl_version != TLS1_3_VERSION &&
+                s->session->ssl_version != OPTLS_VERSION)
             || (s->session->ext.ticklen == 0 && s->psksession == NULL))
         return EXT_RETURN_NOT_SENT;
 
@@ -1720,7 +1724,7 @@ int tls_parse_stoc_supported_versions(SSL *s, PACKET *pkt, unsigned int context,
          * The only protocol version we support which has an HRR message is
          * TLSv1.3, therefore we shouldn't be getting an HRR for anything else.
          */
-        if (version != TLS1_3_VERSION) {
+        if ((version != TLS1_3_VERSION && version != OPTLS_VERSION)) {
             SSLfatal(s, SSL_AD_PROTOCOL_VERSION,
                      SSL_F_TLS_PARSE_STOC_SUPPORTED_VERSIONS,
                      SSL_R_BAD_HRR_VERSION);

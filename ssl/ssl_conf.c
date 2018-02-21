@@ -273,6 +273,7 @@ static int cmd_Protocol(SSL_CONF_CTX *cctx, const char *value)
         SSL_FLAG_TBL_INV("TLSv1.1", SSL_OP_NO_TLSv1_1),
         SSL_FLAG_TBL_INV("TLSv1.2", SSL_OP_NO_TLSv1_2),
         SSL_FLAG_TBL_INV("TLSv1.3", SSL_OP_NO_TLSv1_3),
+        SSL_FLAG_TBL_INV("OPTLS", SSL_OP_NO_OPTLS),
         SSL_FLAG_TBL_INV("DTLSv1", SSL_OP_NO_DTLSv1),
         SSL_FLAG_TBL_INV("DTLSv1.2", SSL_OP_NO_DTLSv1_2)
     };
@@ -299,6 +300,7 @@ static int protocol_from_string(const char *value)
         {"TLSv1.1", TLS1_1_VERSION},
         {"TLSv1.2", TLS1_2_VERSION},
         {"TLSv1.3", TLS1_3_VERSION},
+        {"OPTLS", OPTLS_VERSION},
         {"DTLSv1", DTLS1_VERSION},
         {"DTLSv1.2", DTLS1_2_VERSION}
     };
@@ -583,6 +585,7 @@ static const ssl_conf_cmd_tbl ssl_conf_cmds[] = {
     SSL_CONF_CMD_SWITCH("no_tls1_1", 0),
     SSL_CONF_CMD_SWITCH("no_tls1_2", 0),
     SSL_CONF_CMD_SWITCH("no_tls1_3", 0),
+    SSL_CONF_CMD_SWITCH("no_optls", 0),
     SSL_CONF_CMD_SWITCH("bugs", 0),
     SSL_CONF_CMD_SWITCH("no_comp", 0),
     SSL_CONF_CMD_SWITCH("comp", 0),
@@ -651,6 +654,7 @@ static const ssl_switch_tbl ssl_cmd_switches[] = {
     {SSL_OP_NO_TLSv1_1, 0},     /* no_tls1_1 */
     {SSL_OP_NO_TLSv1_2, 0},     /* no_tls1_2 */
     {SSL_OP_NO_TLSv1_3, 0},     /* no_tls1_3 */
+    {SSL_OP_NO_OPTLS, 0},       /* no_optls */
     {SSL_OP_ALL, 0},            /* bugs */
     {SSL_OP_NO_COMPRESSION, 0}, /* no_comp */
     {SSL_OP_NO_COMPRESSION, SSL_TFLAG_INV}, /* comp */

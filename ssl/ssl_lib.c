@@ -510,7 +510,11 @@ static int ssl_check_allowed_versions(int min_version, int max_version)
         if (min_version == 0)
             min_version = SSL3_VERSION;
         if (max_version == 0)
+            max_version = OPTLS_VERSION;
+#ifdef OPENSSL_NO_OPTLS
+        if (max_version == OPTLS_VERSION)
             max_version = TLS1_3_VERSION;
+#endif
 #ifdef OPENSSL_NO_TLS1_3
         if (max_version == TLS1_3_VERSION)
             max_version = TLS1_2_VERSION;
@@ -559,6 +563,9 @@ static int ssl_check_allowed_versions(int min_version, int max_version)
 #endif
 #ifdef OPENSSL_NO_TLS1_3
             || (min_version <= TLS1_3_VERSION && TLS1_3_VERSION <= max_version)
+#endif
+#ifdef OPENSSL_NO_OPTLS
+            || (min_version <= OPTLS_VERSION && OPTLS_VERSION <= max_version)
 #endif
             )
             return 0;
@@ -3527,6 +3534,9 @@ const char *ssl_protocol_to_string(int version)
 {
     switch(version)
     {
+    case OPTLS_VERSION:
+        return "OPTLS";
+
     case TLS1_3_VERSION:
         return "TLSv1.3";
 

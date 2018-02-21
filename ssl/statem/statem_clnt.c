@@ -1181,8 +1181,9 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 
     /* Session ID */
     session_id = s->session->session_id;
-    if (s->new_session || s->session->ssl_version == TLS1_3_VERSION) {
-        if (s->version == TLS1_3_VERSION
+    if (s->new_session || s->session->ssl_version == TLS1_3_VERSION ||
+            s->session->ssl_version == OPTLS_VERSION) {
+        if ((s->version == TLS1_3_VERSION || s->version == OPTLS_VERSION)
                 && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
             sess_id_len = sizeof(s->tmp_session_id);
             s->tmp_session_id_len = sess_id_len;
@@ -1200,7 +1201,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         }
     } else {
         sess_id_len = s->session->session_id_length;
-        if (s->version == TLS1_3_VERSION) {
+        if ((s->version == TLS1_3_VERSION || s->version == OPTLS_VERSION))
+        {
             s->tmp_session_id_len = sess_id_len;
             memcpy(s->tmp_session_id, s->session->session_id, sess_id_len);
         }
@@ -1407,7 +1409,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     }
 
     /* load the server random */
-    if (s->version == TLS1_3_VERSION
+    if ((s->version == TLS1_3_VERSION || s->version == OPTLS_VERSION)
             && sversion == TLS1_2_VERSION
             && PACKET_remaining(pkt) >= SSL3_RANDOM_SIZE
             && memcmp(hrrrandom, PACKET_data(pkt), SSL3_RANDOM_SIZE) == 0) {

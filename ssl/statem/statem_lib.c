@@ -1374,12 +1374,17 @@ typedef struct {
     const SSL_METHOD *(*smeth) (void);
 } version_info;
 
-#if TLS_MAX_VERSION != TLS1_3_VERSION
-# error Code needs update for TLS_method() support beyond TLS1_3_VERSION.
+#if TLS_MAX_VERSION != OPTLS_VERSION
+# error Code needs update for TLS_method() support beyond OPTLS_VERSION.
 #endif
 
 /* Must be in order high to low */
 static const version_info tls_version_table[] = {
+#ifndef OPENSSL_NO_OPTLS
+    {OPTLS_VERSION, optls_client_method, optls_server_method},
+#else
+    {OPTLS_VERSION, NULL, NULL},
+#endif
 #ifndef OPENSSL_NO_TLS1_3
     {TLS1_3_VERSION, tlsv1_3_client_method, tlsv1_3_server_method},
 #else
@@ -1721,7 +1726,7 @@ int ssl_choose_server_version(SSL *s, CLIENTHELLO_MSG *hello, DOWNGRADE *dgrd)
                  * This is after a HelloRetryRequest so we better check that we
                  * negotiated TLSv1.3
                  */
-                if (best_vers != TLS1_3_VERSION)
+                if (best_vers != TLS1_3_VERSION && best_vers != OPTLS_VERSION)
                     return SSL_R_UNSUPPORTED_PROTOCOL;
                 return 0;
             }
@@ -1793,7 +1798,7 @@ int ssl_choose_client_version(SSL *s, int version, RAW_EXTENSION *extensions)
     }
 
     if (s->hello_retry_request != SSL_HRR_NONE
-            && s->version != TLS1_3_VERSION) {
+            && (s->version != TLS1_3_VERSION && s->version != OPTLS_VERSION)) {
         s->version = origv;
         SSLfatal(s, SSL_AD_PROTOCOL_VERSION, SSL_F_SSL_CHOOSE_CLIENT_VERSION,
                  SSL_R_WRONG_SSL_VERSION);

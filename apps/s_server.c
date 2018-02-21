@@ -752,9 +752,9 @@ typedef enum OPTION_choice {
     OPT_PSK_SESS, OPT_SRPVFILE, OPT_SRPUSERSEED, OPT_REV, OPT_WWW,
     OPT_UPPER_WWW, OPT_HTTP, OPT_ASYNC, OPT_SSL_CONFIG,
     OPT_MAX_SEND_FRAG, OPT_SPLIT_SEND_FRAG, OPT_MAX_PIPELINES, OPT_READ_BUF,
-    OPT_SSL3, OPT_TLS1_3, OPT_TLS1_2, OPT_TLS1_1, OPT_TLS1, OPT_DTLS, OPT_DTLS1,
-    OPT_DTLS1_2, OPT_SCTP, OPT_TIMEOUT, OPT_MTU, OPT_LISTEN, OPT_STATELESS,
-    OPT_ID_PREFIX, OPT_SERVERNAME, OPT_SERVERNAME_FATAL,
+    OPT_SSL3, OPT_OPTLS, OPT_TLS1_3, OPT_TLS1_2, OPT_TLS1_1, OPT_TLS1, OPT_DTLS,
+    OPT_DTLS1, OPT_DTLS1_2, OPT_SCTP, OPT_TIMEOUT, OPT_MTU, OPT_LISTEN,
+    OPT_STATELESS, OPT_ID_PREFIX, OPT_SERVERNAME, OPT_SERVERNAME_FATAL,
     OPT_CERT2, OPT_KEY2, OPT_NEXTPROTONEG, OPT_ALPN,
     OPT_SRTP_PROFILES, OPT_KEYMATEXPORT, OPT_KEYMATEXPORTLEN,
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_EARLY_DATA,
@@ -928,6 +928,9 @@ const OPTIONS s_server_options[] = {
 #ifndef OPENSSL_NO_TLS1_3
     {"tls1_3", OPT_TLS1_3, '-', "just talk TLSv1.3"},
 #endif
+#ifndef OPENSSL_NO_TLS1_3
+    {"optls", OPT_OPTLS, '-', "just talk OPTLS"},
+#endif
 #ifndef OPENSSL_NO_DTLS
     {"dtls", OPT_DTLS, '-', "Use any DTLS version"},
     {"timeout", OPT_TIMEOUT, '-', "Enable timeouts"},
@@ -970,7 +973,8 @@ const OPTIONS s_server_options[] = {
 
 #define IS_PROT_FLAG(o) \
  (o == OPT_SSL3 || o == OPT_TLS1 || o == OPT_TLS1_1 || o == OPT_TLS1_2 \
-  || o == OPT_TLS1_3 || o == OPT_DTLS || o == OPT_DTLS1 || o == OPT_DTLS1_2)
+  || o == OPT_TLS1_3 || o == OPT_DTLS || o == OPT_DTLS1 || o == OPT_DTLS1_2 \
+  || o == OPT_OPTLS)
 
 int s_server_main(int argc, char *argv[])
 {
@@ -1440,6 +1444,10 @@ int s_server_main(int argc, char *argv[])
         case OPT_SSL3:
             min_version = SSL3_VERSION;
             max_version = SSL3_VERSION;
+            break;
+        case OPT_OPTLS:
+            min_version = OPTLS_VERSION;
+            max_version = OPTLS_VERSION;
             break;
         case OPT_TLS1_3:
             min_version = TLS1_3_VERSION;

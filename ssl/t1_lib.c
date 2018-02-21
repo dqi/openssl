@@ -90,6 +90,23 @@ SSL3_ENC_METHOD const TLSv1_3_enc_data = {
     ssl3_handshake_write
 };
 
+SSL3_ENC_METHOD const OPTLS_enc_data = {
+    tls13_enc,
+    tls1_mac,
+    optls_setup_key_block,
+    optls_generate_master_secret,
+    optls_change_cipher_state,
+    optls_final_finish_mac,
+    TLS_MD_CLIENT_FINISH_CONST, TLS_MD_CLIENT_FINISH_CONST_SIZE,
+    TLS_MD_SERVER_FINISH_CONST, TLS_MD_SERVER_FINISH_CONST_SIZE,
+    optls_alert_code,
+    optls_export_keying_material,
+    SSL_ENC_FLAG_SIGALGS | SSL_ENC_FLAG_SHA256_PRF,
+    ssl3_set_handshake_header,
+    tls_close_construct_packet,
+    ssl3_handshake_write
+};
+
 long tls1_default_timeout(void)
 {
     /*

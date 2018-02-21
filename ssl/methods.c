@@ -19,6 +19,10 @@ IMPLEMENT_tls_meth_func(TLS_ANY_VERSION, 0, 0,
                         TLS_method,
                         ossl_statem_accept,
                         ossl_statem_connect, TLSv1_2_enc_data)
+IMPLEMENT_tls_meth_func(OPTLS_VERSION, 0, SSL_OP_NO_OPTLS,
+                        optls_method,
+                        ossl_statem_accept,
+                        ossl_statem_connect, OPTLS_enc_data)
 IMPLEMENT_tls_meth_func(TLS1_3_VERSION, 0, SSL_OP_NO_TLSv1_3,
                         tlsv1_3_method,
                         ossl_statem_accept,
@@ -50,6 +54,10 @@ IMPLEMENT_tls_meth_func(TLS_ANY_VERSION, 0, 0,
                         TLS_server_method,
                         ossl_statem_accept,
                         ssl_undefined_function, TLSv1_2_enc_data)
+IMPLEMENT_tls_meth_func(OPTLS_VERSION, 0, SSL_OP_NO_OPTLS,
+                        optls_server_method,
+                        ossl_statem_accept,
+                        ssl_undefined_function, OPTLS_enc_data)
 IMPLEMENT_tls_meth_func(TLS1_3_VERSION, 0, SSL_OP_NO_TLSv1_3,
                         tlsv1_3_server_method,
                         ossl_statem_accept,
@@ -83,6 +91,10 @@ IMPLEMENT_tls_meth_func(TLS_ANY_VERSION, 0, 0,
                         TLS_client_method,
                         ssl_undefined_function,
                         ossl_statem_connect, TLSv1_2_enc_data)
+IMPLEMENT_tls_meth_func(OPTLS_VERSION, 0, SSL_OP_NO_OPTLS,
+                        optls_client_method,
+                        ssl_undefined_function,
+                        ossl_statem_connect, OPTLS_enc_data)
 IMPLEMENT_tls_meth_func(TLS1_3_VERSION, 0, SSL_OP_NO_TLSv1_3,
                         tlsv1_3_client_method,
                         ssl_undefined_function,

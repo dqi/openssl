@@ -317,6 +317,11 @@
 /* Check if an SSL structure is using DTLS */
 # define SSL_IS_DTLS(s)  (s->method->ssl3_enc->enc_flags & SSL_ENC_FLAG_DTLS)
 
+/* Check if we are using OPTLS */
+# define SSL_IS_OPTLS(s) (!SSL_IS_DTLS(s) \
+                          && (s)->method->version >= OPTLS_VERSION \
+                          && (s)->method->version != TLS_ANY_VERSION)
+
 /* Check if we are using TLSv1.3 */
 # define SSL_IS_TLS13(s) (!SSL_IS_DTLS(s) \
                           && (s)->method->version >= TLS1_3_VERSION \
@@ -2004,6 +2009,9 @@ __owur const SSL_METHOD *tlsv1_2_client_method(void);
 __owur const SSL_METHOD *tlsv1_3_method(void);
 __owur const SSL_METHOD *tlsv1_3_server_method(void);
 __owur const SSL_METHOD *tlsv1_3_client_method(void);
+__owur const SSL_METHOD *optls_client_method(void);
+__owur const SSL_METHOD *optls_method(void);
+__owur const SSL_METHOD *optls_server_method(void);
 __owur const SSL_METHOD *dtlsv1_method(void);
 __owur const SSL_METHOD *dtlsv1_server_method(void);
 __owur const SSL_METHOD *dtlsv1_client_method(void);
@@ -2016,6 +2024,7 @@ extern const SSL3_ENC_METHOD TLSv1_enc_data;
 extern const SSL3_ENC_METHOD TLSv1_1_enc_data;
 extern const SSL3_ENC_METHOD TLSv1_2_enc_data;
 extern const SSL3_ENC_METHOD TLSv1_3_enc_data;
+extern const SSL3_ENC_METHOD OPTLS_enc_data;
 extern const SSL3_ENC_METHOD SSLv3_enc_data;
 extern const SSL3_ENC_METHOD DTLSv1_enc_data;
 extern const SSL3_ENC_METHOD DTLSv1_2_enc_data;
@@ -2368,6 +2377,36 @@ __owur size_t tls1_final_finish_mac(SSL *s, const char *str, size_t slen,
 __owur int tls1_generate_master_secret(SSL *s, unsigned char *out,
                                        unsigned char *p, size_t len,
                                        size_t *secret_size);
+__owur int optls_setup_key_block(SSL *s);
+__owur size_t optls_final_finish_mac(SSL *s, const char *str, size_t slen,
+                                     unsigned char *p);
+__owur int optls_change_cipher_state(SSL *s, int which);
+__owur int optls_update_key(SSL *s, int send);
+__owur int optls_hkdf_expand(SSL *s, const EVP_MD *md,
+                             const unsigned char *secret,
+                             const unsigned char *label, size_t labellen,
+                             const unsigned char *data, size_t datalen,
+                             unsigned char *out, size_t outlen);
+__owur int optls_derive_key(SSL *s, const EVP_MD *md,
+                            const unsigned char *secret, unsigned char *key,
+                            size_t keylen);
+__owur int optls_derive_iv(SSL *s, const EVP_MD *md,
+                           const unsigned char *secret, unsigned char *iv,
+                           size_t ivlen);
+__owur int optls_derive_finishedkey(SSL *s, const EVP_MD *md,
+                                    const unsigned char *secret,
+                                    unsigned char *fin, size_t finlen);
+int optls_generate_secret(SSL *s, const EVP_MD *md,
+                          const unsigned char *prevsecret,
+                          const unsigned char *insecret,
+                          size_t insecretlen,
+                          unsigned char *outsecret);
+__owur int optls_generate_handshake_secret(SSL *s,
+                                           const unsigned char *insecret,
+                                           size_t insecretlen);
+__owur int optls_generate_master_secret(SSL *s, unsigned char *out,
+                                        unsigned char *prev, size_t prevlen,
+                                        size_t *secret_size);
 __owur int tls13_setup_key_block(SSL *s);
 __owur size_t tls13_final_finish_mac(SSL *s, const char *str, size_t slen,
                                      unsigned char *p);
@@ -2402,11 +2441,16 @@ __owur int tls1_export_keying_material(SSL *s, unsigned char *out, size_t olen,
                                        const char *label, size_t llen,
                                        const unsigned char *p, size_t plen,
                                        int use_context);
+__owur int optls_export_keying_material(SSL *s, unsigned char *out, size_t olen,
+                                        const char *label, size_t llen,
+                                        const unsigned char *context,
+                                        size_t contextlen, int use_context);
 __owur int tls13_export_keying_material(SSL *s, unsigned char *out, size_t olen,
                                         const char *label, size_t llen,
                                         const unsigned char *context,
                                         size_t contextlen, int use_context);
 __owur int tls1_alert_code(int code);
+__owur int optls_alert_code(int code);
 __owur int tls13_alert_code(int code);
 __owur int ssl3_alert_code(int code);
 

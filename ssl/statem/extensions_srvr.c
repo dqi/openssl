@@ -804,7 +804,7 @@ int tls_parse_ctos_cookie(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
                  SSL_R_LENGTH_MISMATCH);
         return 0;
     }
-    if (version != TLS1_3_VERSION) {
+    if (version != TLS1_3_VERSION) { //TODO(OPTLS)
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_F_TLS_PARSE_CTOS_COOKIE,
                  SSL_R_BAD_PROTOCOL_VERSION_NUMBER);
         return 0;
@@ -1526,7 +1526,8 @@ EXT_RETURN tls_construct_stoc_supported_versions(SSL *s, WPACKET *pkt,
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_supported_versions)
             || !WPACKET_start_sub_packet_u16(pkt)
                 /* TODO(TLS1.3): Update to remove the TLSv1.3 draft indicator */
-            || !WPACKET_put_bytes_u16(pkt, TLS1_3_VERSION_DRAFT)
+            || (SSL_IS_OPTLS(s) ? !WPACKET_put_bytes_u16(pkt, OPTLS_VERSION) :
+            !WPACKET_put_bytes_u16(pkt, TLS1_3_VERSION_DRAFT))
             || !WPACKET_close(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                  SSL_F_TLS_CONSTRUCT_STOC_SUPPORTED_VERSIONS,
@@ -1640,7 +1641,7 @@ EXT_RETURN tls_construct_stoc_cookie(SSL *s, WPACKET *pkt, unsigned int context,
             || !WPACKET_get_total_written(pkt, &startlen)
             || !WPACKET_reserve_bytes(pkt, MAX_COOKIE_SIZE, &cookie)
             || !WPACKET_put_bytes_u16(pkt, COOKIE_STATE_FORMAT_VERSION)
-            || !WPACKET_put_bytes_u16(pkt, TLS1_3_VERSION)
+            || !WPACKET_put_bytes_u16(pkt, TLS1_3_VERSION) //TODO(OPTLS))
             || !WPACKET_put_bytes_u16(pkt, s->s3->group_id)
             || !s->method->put_cipher_by_char(s->s3->tmp.new_cipher, pkt,
                                               &ciphlen)

@@ -316,6 +316,7 @@ int ssl_generate_session_id(SSL *s, SSL_SESSION *ss)
     case TLS1_1_VERSION:
     case TLS1_2_VERSION:
     case TLS1_3_VERSION:
+    case OPTLS_VERSION:
     case DTLS1_BAD_VER:
     case DTLS1_VERSION:
     case DTLS1_2_VERSION:

@@ -585,7 +585,7 @@ typedef enum OPTION_choice {
     OPT_SRP_MOREGROUPS,
 #endif
     OPT_SSL3, OPT_SSL_CONFIG,
-    OPT_TLS1_3, OPT_TLS1_2, OPT_TLS1_1, OPT_TLS1, OPT_DTLS, OPT_DTLS1,
+    OPT_OPTLS, OPT_TLS1_3, OPT_TLS1_2, OPT_TLS1_1, OPT_TLS1, OPT_DTLS, OPT_DTLS1,
     OPT_DTLS1_2, OPT_SCTP, OPT_TIMEOUT, OPT_MTU, OPT_KEYFORM, OPT_PASS,
     OPT_CERT_CHAIN, OPT_CAPATH, OPT_NOCAPATH, OPT_CHAINCAPATH, OPT_VERIFYCAPATH,
     OPT_KEY, OPT_RECONNECT, OPT_BUILD_CHAIN, OPT_CAFILE, OPT_NOCAFILE,
@@ -740,6 +740,9 @@ const OPTIONS s_client_options[] = {
 #ifndef OPENSSL_NO_TLS1_3
     {"tls1_3", OPT_TLS1_3, '-', "Just use TLSv1.3"},
 #endif
+#ifndef OPENSSL_NO_TLS1_3
+    {"optls", OPT_OPTLS, '-', "Just use OPTLS"},
+#endif
 #ifndef OPENSSL_NO_DTLS
     {"dtls", OPT_DTLS, '-', "Use any version of DTLS"},
     {"timeout", OPT_TIMEOUT, '-',
@@ -837,7 +840,8 @@ static const OPT_PAIR services[] = {
 
 #define IS_PROT_FLAG(o) \
  (o == OPT_SSL3 || o == OPT_TLS1 || o == OPT_TLS1_1 || o == OPT_TLS1_2 \
-  || o == OPT_TLS1_3 || o == OPT_DTLS || o == OPT_DTLS1 || o == OPT_DTLS1_2)
+  || o == OPT_TLS1_3 || o == OPT_DTLS || o == OPT_DTLS1 || o == OPT_DTLS1_2 \
+  || o == OPT_OPTLS)
 
 /* Free |*dest| and optionally set it to a copy of |source|. */
 static void freeandcopy(char **dest, const char *source)
@@ -1263,6 +1267,10 @@ int s_client_main(int argc, char **argv)
         case OPT_SSL3:
             min_version = SSL3_VERSION;
             max_version = SSL3_VERSION;
+            break;
+        case OPT_OPTLS:
+            min_version = OPTLS_VERSION;
+            max_version = OPTLS_VERSION;
             break;
         case OPT_TLS1_3:
             min_version = TLS1_3_VERSION;
