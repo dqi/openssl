@@ -363,6 +363,8 @@ int send_certificate_request(SSL *s)
                || (s->verify_mode & SSL_VERIFY_FAIL_IF_NO_PEER_CERT))
            /* don't request certificate for SRP auth */
            && !(s->s3->tmp.new_cipher->algorithm_auth & SSL_aSRP)
+           /* OPTLS does not support client certificates */
+           && !SSL_IS_OPTLS(s)
            /*
             * With normal PSK Certificates and Certificate Requests
             * are omitted
@@ -449,7 +451,8 @@ static WRITE_TRAN ossl_statem_server13_write_transition(SSL *s)
         return WRITE_TRAN_CONTINUE;
 
     case TLS_ST_SW_CERT:
-        st->hand_state = TLS_ST_SW_CERT_VRFY;
+        st->hand_state = SSL_IS_OPTLS(s) ? TLS_ST_SW_FINISHED :
+            TLS_ST_SW_CERT_VRFY;
         return WRITE_TRAN_CONTINUE;
 
     case TLS_ST_SW_CERT_VRFY:

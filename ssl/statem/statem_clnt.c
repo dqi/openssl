@@ -119,7 +119,7 @@ static int ossl_statem_client13_read_transition(SSL *s, int mt)
                 return 1;
             }
         } else {
-            if (mt == SSL3_MT_CERTIFICATE_REQUEST) {
+            if (mt == SSL3_MT_CERTIFICATE_REQUEST && !SSL_IS_OPTLS(s)) {
                 st->hand_state = TLS_ST_CR_CERT_REQ;
                 return 1;
             }
@@ -138,7 +138,11 @@ static int ossl_statem_client13_read_transition(SSL *s, int mt)
         break;
 
     case TLS_ST_CR_CERT:
-        if (mt == SSL3_MT_CERTIFICATE_VERIFY) {
+        if (mt == SSL3_MT_FINISHED && SSL_IS_OPTLS(s)) {
+            st->hand_state = TLS_ST_CR_FINISHED;
+            return 1;
+        }
+        if (mt == SSL3_MT_CERTIFICATE_VERIFY && !SSL_IS_OPTLS(s)) {
             st->hand_state = TLS_ST_CR_CERT_VRFY;
             return 1;
         }
