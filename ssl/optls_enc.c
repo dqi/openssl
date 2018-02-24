@@ -123,8 +123,8 @@ int optls_derive_finishedkey(SSL *s, const EVP_MD *md,
  * pointed to by |outsecret|. Returns 1 on success  0 on failure.
  */
 int optls_generate_secret(SSL *s, const EVP_MD *md,
-                          const unsigned char *prevsecret,
-                          const unsigned char *insecret,
+                          const unsigned char *prevsecret, // An actual SECRET
+                          const unsigned char *insecret,   // ECDHE input or whatever
                           size_t insecretlen,
                           unsigned char *outsecret)
 {
@@ -201,8 +201,7 @@ int optls_generate_secret(SSL *s, const EVP_MD *md,
 
 /*
  * Given an input secret |insecret| of length |insecretlen| generate the
- * handshake secret. This requires the early secret to already have been
- * generated. Returns 1 on success  0 on failure.
+ * handshake secret. Returns 1 on success  0 on failure.
  */
 int optls_generate_handshake_secret(SSL *s, const unsigned char *insecret,
                                 size_t insecretlen)

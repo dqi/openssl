@@ -200,6 +200,8 @@
 # define SSL_aSRP                0x00000040U
 /* GOST R 34.10-2012 signature auth */
 # define SSL_aGOST12             0x00000080U
+/* DH signed certificate auth */
+# define SSL_aDH                 0x00000100U
 /* Any appropriate signature auth (for TLS 1.3 ciphersuites) */
 # define SSL_aANY                0x00000000U
 /* All bits requiring a certificate */
@@ -386,7 +388,8 @@
 # define SSL_PKEY_GOST12_256     5
 # define SSL_PKEY_GOST12_512     6
 # define SSL_PKEY_ED25519        7
-# define SSL_PKEY_NUM            8
+# define SSL_PKEY_X25519         8
+# define SSL_PKEY_NUM            9
 /*
  * Pseudo-constant. GOST cipher suites can use different certs for 1
  * SSL_CIPHER. So let's see which one we have in fact.
@@ -1116,6 +1119,14 @@ struct ssl_st {
     unsigned char client_app_traffic_secret[EVP_MAX_MD_SIZE];
     unsigned char server_app_traffic_secret[EVP_MAX_MD_SIZE];
     unsigned char exporter_master_secret[EVP_MAX_MD_SIZE];
+    /*
+     * The OPTLS secrets. The resumption master secret is stored in the
+     * session.
+     */
+    unsigned char xemphemeral_secret[EVP_MAX_MD_SIZE];
+    unsigned char memphemeral_secret[EVP_MAX_MD_SIZE];
+    unsigned char xstatic_secret[EVP_MAX_MD_SIZE];
+    unsigned char mstatic_secret[EVP_MAX_MD_SIZE];
     EVP_CIPHER_CTX *enc_read_ctx; /* cryptographic state */
     unsigned char read_iv[EVP_MAX_IV_LENGTH]; /* TLSv1.3 static read IV */
     EVP_MD_CTX *read_hash;      /* used for mac generation */
