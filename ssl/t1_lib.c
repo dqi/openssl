@@ -2404,7 +2404,7 @@ int tls_choose_sigalg(SSL *s, int fatalerrs)
     s->s3->tmp.cert = NULL;
     s->s3->tmp.sigalg = NULL;
 
-    if (SSL_IS_TLS13(s)) {
+    if (SSL_IS_TLS13(s) && !SSL_IS_OPTLS(s)) {
         size_t i;
 #ifndef OPENSSL_NO_EC
         int curve = -1, skip_ec = 0;
@@ -2456,6 +2456,20 @@ int tls_choose_sigalg(SSL *s, int fatalerrs)
                      SSL_R_NO_SUITABLE_SIGNATURE_ALGORITHM);
             return 0;
         }
+    } else if (SSL_IS_OPTLS(s)) {
+        size_t i;
+        /* For OPTLS we do not need to find a shared sigalg. Instead we need to
+         * check if one of the certificates has a DH public key. */
+        /* s->cert->pkeys[8].x509->cert_info.key->algor->algorithm->nid */
+        for (i = SSL_PKEY_DH_CERT_START; i < SSL_PKEY_NUM; i++) {
+            if(ssl_has_cert(s, i)) {
+                sig_idx = i;
+                break;
+            }
+        }
+        if (sig_idx == -1)
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CHOOSE_SIGALG,
+                             ERR_R_INTERNAL_ERROR);
     } else {
         /* If ciphersuite doesn't require a cert nothing to do */
         if (!(s->s3->tmp.new_cipher->algorithm_auth & SSL_aCERT))

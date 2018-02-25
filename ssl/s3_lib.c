@@ -4717,6 +4717,8 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
     size_t pmslen = 0;
     size_t ssklen = 0;
     EVP_PKEY_CTX *pctx;
+    EVP_PKEY_CTX *gsctx;
+    EVP_PKEY *gs;
 
     if (privkey == NULL || pubkey == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
@@ -4750,6 +4752,43 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
     if (gensecret) {
         /* SSLfatal() called as appropriate in the below functions */
         if (SSL_IS_OPTLS(s)) {
+        /* If we are the server We generate the Static Secret, it fits within
+         * the TLS1.3 framework if we save it in s->early_secret.
+         */
+            if (s->server) {
+                /* This is g^s */
+                gs = s->s3->tmp.cert->privatekey;
+                if (gs == NULL || pubkey == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                             ERR_R_INTERNAL_ERROR);
+                    return 0;
+                }
+
+                gsctx = EVP_PKEY_CTX_new(gs, NULL);
+
+                if (EVP_PKEY_derive_init(gsctx) <= 0
+                    || EVP_PKEY_derive_set_peer(gsctx, pubkey) <= 0
+                    || EVP_PKEY_derive(gsctx, NULL, &ssklen) <= 0) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                             ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+
+                ssk = OPENSSL_malloc(ssklen);
+                if (ssk == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                             ERR_R_MALLOC_FAILURE);
+                    goto err;
+                }
+
+                if (EVP_PKEY_derive(gsctx, ssk, &ssklen) <= 0) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                             ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+            }
+            rv = rv & optls_generate_secret(s, ssl_handshake_md(s), NULL,
+                    ssk, ssklen, (unsigned char *)&s->early_secret);
             /*
              * Only create the secret if we are not resuming, otherwise we
              * generate it from the PSK when we create the ClientHello. OR DO
@@ -4759,11 +4798,6 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
             if (!s->hit) {
                 rv = optls_generate_secret(s, ssl_handshake_md(s), NULL, pms,
                         pmslen, (unsigned char *)&s->handshake_secret);
-            /* We can now also generate the Static Secret, it fits within the
-             * TLS1.3 framework if we just call it Early Secret instead.
-             */
-                rv = rv & optls_generate_secret(s, ssl_handshake_md(s), NULL,
-                        ssk, ssklen, (unsigned char *)&s->early_secret);
             }
         } else if (SSL_IS_TLS13(s)) {
             /*
@@ -4791,7 +4825,9 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
 
  err:
     OPENSSL_clear_free(pms, pmslen);
+    OPENSSL_clear_free(ssk, ssklen);
     EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY_CTX_free(csctx);
     return rv;
 }
 

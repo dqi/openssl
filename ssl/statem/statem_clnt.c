@@ -1970,6 +1970,14 @@ MSG_PROCESS_RETURN tls_process_server_certificate(SSL *s, PACKET *pkt)
         /* SSLfatal() already called */;
         goto err;
     }
+    /* The client now has g^s and can construct the Static Secret.
+     * From extenstions_client.c:tls_parse_stoc_key_share
+     *     EVP_PKEY *ckey = s->s3->tmp.pkey;
+     * From statem_lib.c:tls_process_cert_verify
+     *     EVP_PKEY *pkey = NULL;
+     *     X509 *peer;
+     *     peer = s->session->peer;
+     *     pkey = X509_get0_pubkey(peer); */
 
     ret = MSG_PROCESS_CONTINUE_READING;
 

@@ -390,6 +390,8 @@
 # define SSL_PKEY_ED25519        7
 # define SSL_PKEY_X25519         8
 # define SSL_PKEY_NUM            9
+/* Where DH certificates start */
+# define SSL_PKEY_DH_CERT_START  8
 /*
  * Pseudo-constant. GOST cipher suites can use different certs for 1
  * SSL_CIPHER. So let's see which one we have in fact.
