@@ -4712,6 +4712,7 @@ EVP_PKEY *ssl_generate_param_group(uint16_t id)
 int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
 {
     int rv = 0;
+    int gsalloc = 0;
     unsigned char *pms = NULL;
     unsigned char *ssk = NULL;
     size_t pmslen = 0;
@@ -4752,11 +4753,11 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
     if (gensecret) {
         /* SSLfatal() called as appropriate in the below functions */
         if (SSL_IS_OPTLS(s)) {
-        /* If we are the server We generate the Static Secret, it fits within
-         * the TLS1.3 framework if we save it in s->early_secret.
+        /* If we are the server and not resuming we generate the Static Secret,
+         * it fits within the TLS1.3 framework if we save it in s->early_secret.
          */
-            if (s->server) {
-                /* This is g^s */
+            if (s->server && !s->hit) {
+                /* This is s */
                 gs = s->s3->tmp.cert->privatekey;
                 if (gs == NULL || pubkey == NULL) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
@@ -4765,6 +4766,12 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
                 }
 
                 gsctx = EVP_PKEY_CTX_new(gs, NULL);
+                if (gsctx == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                             ERR_R_MALLOC_FAILURE);
+                    goto err;
+                }
+                gsalloc = 1;
 
                 if (EVP_PKEY_derive_init(gsctx) <= 0
                     || EVP_PKEY_derive_set_peer(gsctx, pubkey) <= 0
@@ -4827,7 +4834,8 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
     OPENSSL_clear_free(pms, pmslen);
     OPENSSL_clear_free(ssk, ssklen);
     EVP_PKEY_CTX_free(pctx);
-    EVP_PKEY_CTX_free(csctx);
+    if (gsalloc)
+        EVP_PKEY_CTX_free(gsctx);
     return rv;
 }
 
