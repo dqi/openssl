@@ -1817,6 +1817,10 @@ MSG_PROCESS_RETURN tls_process_server_certificate(SSL *s, PACKET *pkt)
     size_t chainidx, certidx;
     unsigned int context = 0;
     const SSL_CERT_LOOKUP *clu;
+    int palloc = 0;
+    unsigned char *ssk = NULL;
+    size_t ssklen = 0;
+    EVP_PKEY_CTX *pctx = NULL;
 
     if ((sk = sk_X509_new_null()) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
@@ -1978,51 +1982,59 @@ MSG_PROCESS_RETURN tls_process_server_certificate(SSL *s, PACKET *pkt)
      *     X509 *peer;
      *     peer = s->session->peer;
      *     pkey = X509_get0_pubkey(peer); */
-    EVP_PKEY_CTX *pctx = NULL;
-    EVP_PKEY *privkey = s->s3->tmp.pkey;
-    EVP_PKEY *pubkey = NULL;
-    X509 *peer;
-    unsigned char *ssk = NULL;
-    size_t ssklen = 0;
-    peer = s->session->peer;
-    pubkey = X509_get0_pubkey(peer);
-    if (privkey == NULL || pubkey == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
-                 ERR_R_INTERNAL_ERROR);
-        goto err;
+    if (SSL_IS_OPTLS(s) && !s->hit) {
+        EVP_PKEY *privkey = s->s3->tmp.pkey;
+        EVP_PKEY *pubkey = NULL;
+        X509 *peer;
+        peer = s->session->peer;
+        pubkey = X509_get0_pubkey(peer);
+        if (privkey == NULL || pubkey == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        pctx = EVP_PKEY_CTX_new(privkey, NULL);
+        if (pctx == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                    ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+        palloc = 1;
+
+        if (EVP_PKEY_derive_init(pctx) <= 0
+            || EVP_PKEY_derive_set_peer(pctx, pubkey) <= 0
+            || EVP_PKEY_derive(pctx, NULL, &ssklen) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        ssk = OPENSSL_malloc(ssklen);
+        if (ssk == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                     ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+
+        if (EVP_PKEY_derive(pctx, ssk, &ssklen) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        if (!optls_generate_secret(s, ssl_handshake_md(s), NULL, ssk, ssklen,
+                    (unsigned char *)&s->early_secret))
+            goto err;
     }
-
-    pctx = EVP_PKEY_CTX_new(privkey, NULL);
-
-    if (EVP_PKEY_derive_init(pctx) <= 0
-        || EVP_PKEY_derive_set_peer(pctx, pubkey) <= 0
-        || EVP_PKEY_derive(pctx, NULL, &ssklen) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
-                 ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-
-    ssk = OPENSSL_malloc(ssklen);
-    if (ssk == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
-                 ERR_R_MALLOC_FAILURE);
-        goto err;
-    }
-
-    if (EVP_PKEY_derive(pctx, ssk, &ssklen) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
-                 ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-
-    if (!optls_generate_secret(s, ssl_handshake_md(s), NULL, ssk, ssklen,
-                (unsigned char *)&s->early_secret))
-        goto err;
     ret = MSG_PROCESS_CONTINUE_READING;
 
  err:
     X509_free(x);
     sk_X509_pop_free(sk, X509_free);
+    OPENSSL_clear_free(ssk, ssklen);
+    if (palloc)
+        EVP_PKEY_CTX_free(pctx);
     return ret;
 }
 
