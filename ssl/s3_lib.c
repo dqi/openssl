@@ -4753,8 +4753,9 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
     if (gensecret) {
         /* SSLfatal() called as appropriate in the below functions */
         if (SSL_IS_OPTLS(s)) {
-        /* If we are the server and not resuming we generate the Static Secret,
-         * it fits within the TLS1.3 framework if we save it in s->early_secret.
+        /* If we are the server and not resuming we still need to generate the
+         * Static Secret. It fits within the TLS1.3 framework if we save it in
+         * s->early_secret.
          */
             if (s->server && !s->hit) {
                 /* This is s */
@@ -4793,19 +4794,20 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
                              ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
-            }
-            rv = rv & optls_generate_secret(s, ssl_handshake_md(s), NULL,
-                    ssk, ssklen, (unsigned char *)&s->early_secret);
+                rv = optls_generate_secret(s, ssl_handshake_md(s), NULL, ssk,
+                        ssklen, (unsigned char *)&s->early_secret);
+            } else
+                rv = 1;
             /*
              * Only create the secret if we are not resuming, otherwise we
              * generate it from the PSK when we create the ClientHello. OR DO
              * WE? TODO(OPTLS) sth like &s->xemphemeral_secret would be more
              * accurate, but requires more changes while this should 'just work'
-             */
-            if (!s->hit) {
-                rv = optls_generate_secret(s, ssl_handshake_md(s), NULL, pms,
-                        pmslen, (unsigned char *)&s->handshake_secret);
-            }
+             * -- For now we do PSK-DHE
+             * if (!s->hit) { */
+            rv = rv & optls_generate_secret(s, ssl_handshake_md(s), NULL, pms,
+                    pmslen, (unsigned char *)&s->handshake_secret);
+            /* } */
         } else if (SSL_IS_TLS13(s)) {
             /*
              * If we are resuming then we already generated the early secret
