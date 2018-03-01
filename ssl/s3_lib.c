@@ -4799,15 +4799,11 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
             } else
                 rv = 1;
             /*
-             * Only create the secret if we are not resuming, otherwise we
-             * generate it from the PSK when we create the ClientHello. OR DO
-             * WE? TODO(OPTLS) sth like &s->xemphemeral_secret would be more
-             * accurate, but requires more changes while this should 'just work'
-             * -- For now we do PSK-DHE
-             * if (!s->hit) { */
-            rv = rv & optls_generate_secret(s, ssl_handshake_md(s), NULL, pms,
-                    pmslen, (unsigned char *)&s->handshake_secret);
-            /* } */
+             * If this function is called we always need to use g^{xy} to
+             * generate the handshake secret.
+             */
+             rv = rv & optls_generate_secret(s, ssl_handshake_md(s), NULL, pms,
+                     pmslen, (unsigned char *)&s->handshake_secret);
         } else if (SSL_IS_TLS13(s)) {
             /*
              * If we are resuming then we already generated the early secret

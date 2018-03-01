@@ -1125,10 +1125,7 @@ struct ssl_st {
      * The OPTLS secrets. The resumption master secret is stored in the
      * session.
      */
-    unsigned char xemphemeral_secret[EVP_MAX_MD_SIZE];
-    unsigned char memphemeral_secret[EVP_MAX_MD_SIZE];
-    unsigned char xstatic_secret[EVP_MAX_MD_SIZE];
-    unsigned char mstatic_secret[EVP_MAX_MD_SIZE];
+    unsigned char psk[EVP_MAX_MD_SIZE];
     EVP_CIPHER_CTX *enc_read_ctx; /* cryptographic state */
     unsigned char read_iv[EVP_MAX_IV_LENGTH]; /* TLSv1.3 static read IV */
     EVP_MD_CTX *read_hash;      /* used for mac generation */

@@ -2467,9 +2467,11 @@ int tls_choose_sigalg(SSL *s, int fatalerrs)
                 break;
             }
         }
-        if (sig_idx == -1)
+        if (sig_idx == -1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CHOOSE_SIGALG,
                              ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
     } else {
         /* If ciphersuite doesn't require a cert nothing to do */
         if (!(s->s3->tmp.new_cipher->algorithm_auth & SSL_aCERT))

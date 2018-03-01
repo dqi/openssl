@@ -1243,6 +1243,9 @@ static int final_sig_algs(SSL *s, unsigned int context, int sent)
 #ifndef OPENSSL_NO_EC
 static int final_key_share(SSL *s, unsigned int context, int sent)
 {
+    const EVP_MD *md = NULL;
+    size_t hashsize;
+
     if (!SSL_IS_TLS13(s))
         return 1;
 
@@ -1394,10 +1397,29 @@ static int final_key_share(SSL *s, unsigned int context, int sent)
          * the handshake secret (otherwise this is done during key_share
          * processing).
          */
-        if (!sent && !tls13_generate_handshake_secret(s, NULL, 0)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_KEY_SHARE,
-                     ERR_R_INTERNAL_ERROR);
-            return 0;
+        if (!sent) {
+            if (SSL_IS_OPTLS(s)) {
+                if (s->psksession != NULL)
+                    md = ssl_md(s->psksession->cipher->algorithm2);
+                else
+                    md = ssl_md(s->session->cipher->algorithm2);
+                if (md == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_KEY_SHARE,
+                            ERR_R_INTERNAL_ERROR);
+                    return 0;
+                }
+                hashsize = EVP_MD_size(md);
+                if (!optls_generate_secret(s, md, NULL, s->psk, hashsize,
+                                           s->handshake_secret)) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_KEY_SHARE,
+                            ERR_R_INTERNAL_ERROR);
+                    return 0;
+                }
+            } else if (!tls13_generate_handshake_secret(s, NULL, 0)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_KEY_SHARE,
+                         ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
         }
     }
 
@@ -1462,6 +1484,21 @@ int tls_psk_do_binder(SSL *s, const EVP_MD *md, const unsigned char *msgstart,
             goto err;
         }
     }
+    // For OPTLS we need to know PSK for the xES (s->handshake_secret), (well if
+    // we do NO_DHE mode) do we know the mode yet when we are here?  i.e did we
+    // construct/parse psk_key_exchange_modes yet?
+    //
+    // happens in   tls_construct_ctos_psk_kex_modes and
+    //              tls_parse_ctos_psk_kex_modes
+    // if so we can construct the OPTLS xES here, else we need to save psk for
+    // later use. Well it seems to be so... but maybe it is still better to
+    // generate it where TLS13 generates the handshake secrets hmm
+    //
+    // Both modes can also still be set here so better to do this where TLS13
+    // does it. Note that (as client) we are still in TLS_ANY_VERSION so no
+    // option to do this only for OPTLS.
+    if ((s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE) != 0)
+        memcpy(s->psk, psk, hashsize); //TODO(OPTLS) is s->psk the best place?
 
     /*
      * Generate the early_secret. On the server side we've selected a PSK to

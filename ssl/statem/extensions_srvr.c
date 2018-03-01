@@ -1546,6 +1546,8 @@ EXT_RETURN tls_construct_stoc_key_share(SSL *s, WPACKET *pkt,
     unsigned char *encodedPoint;
     size_t encoded_pt_len = 0;
     EVP_PKEY *ckey = s->s3->peer_tmp, *skey = NULL;
+    const EVP_MD *md = NULL;
+    size_t hashsize;
 
     if (s->hello_retry_request == SSL_HRR_PENDING) {
         if (ckey != NULL) {
@@ -1566,8 +1568,22 @@ EXT_RETURN tls_construct_stoc_key_share(SSL *s, WPACKET *pkt,
     }
 
     if (ckey == NULL) {
-        /* No key_share received from client - must be resuming */
-        if (!s->hit || !tls13_generate_handshake_secret(s, NULL, 0)) {
+        /* No key_share parsed from client - must be resuming */
+        if (SSL_IS_OPTLS(s)) {
+            md = ssl_md(s->session->cipher->algorithm2);
+            if (md == NULL) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                        SSL_F_TLS_CONSTRUCT_STOC_KEY_SHARE, ERR_R_INTERNAL_ERROR);
+                return EXT_RETURN_FAIL;
+            }
+            hashsize = EVP_MD_size(md);
+            if (!s->hit || !optls_generate_secret(s, md, NULL, s->psk, hashsize,
+                                                  s->handshake_secret)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                         SSL_F_TLS_CONSTRUCT_STOC_KEY_SHARE, ERR_R_INTERNAL_ERROR);
+                return EXT_RETURN_FAIL;
+            }
+        } else if (!s->hit || !tls13_generate_handshake_secret(s, NULL, 0)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                      SSL_F_TLS_CONSTRUCT_STOC_KEY_SHARE, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
