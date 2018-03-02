@@ -1989,14 +1989,14 @@ MSG_PROCESS_RETURN tls_process_server_certificate(SSL *s, PACKET *pkt)
         peer = s->session->peer;
         pubkey = X509_get0_pubkey(peer);
         if (privkey == NULL || pubkey == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
 
         pctx = EVP_PKEY_CTX_new(privkey, NULL);
         if (pctx == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
                     ERR_R_MALLOC_FAILURE);
             goto err;
         }
@@ -2005,20 +2005,20 @@ MSG_PROCESS_RETURN tls_process_server_certificate(SSL *s, PACKET *pkt)
         if (EVP_PKEY_derive_init(pctx) <= 0
             || EVP_PKEY_derive_set_peer(pctx, pubkey) <= 0
             || EVP_PKEY_derive(pctx, NULL, &ssklen) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
 
         ssk = OPENSSL_malloc(ssklen);
         if (ssk == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
                      ERR_R_MALLOC_FAILURE);
             goto err;
         }
 
         if (EVP_PKEY_derive(pctx, ssk, &ssklen) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }

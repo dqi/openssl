@@ -85,6 +85,8 @@ static const ERR_STRING_DATA SSL_str_functs[] = {
      "optls_change_cipher_state"},
     {ERR_PACK(ERR_LIB_SSL, SSL_F_OPTLS_FINAL_FINISH_MAC, 0),
      "optls_final_finish_mac"},
+    {ERR_PACK(ERR_LIB_SSL, SSL_F_OPTLS_GENERATE_MASTER_SECRET, 0),
+     "optls_generate_master_secret"},
     {ERR_PACK(ERR_LIB_SSL, SSL_F_OPTLS_GENERATE_SECRET, 0),
      "optls_generate_secret"},
     {ERR_PACK(ERR_LIB_SSL, SSL_F_OPTLS_HKDF_EXPAND, 0), "optls_hkdf_expand"},

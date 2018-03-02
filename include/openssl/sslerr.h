@@ -68,6 +68,7 @@ int ERR_load_SSL_strings(void);
 # define SSL_F_OPENSSL_INIT_SSL                           342
 # define SSL_F_OPTLS_CHANGE_CIPHER_STATE                  621
 # define SSL_F_OPTLS_FINAL_FINISH_MAC                     622
+# define SSL_F_OPTLS_GENERATE_MASTER_SECRET               626
 # define SSL_F_OPTLS_GENERATE_SECRET                      623
 # define SSL_F_OPTLS_HKDF_EXPAND                          624
 # define SSL_F_OPTLS_SETUP_KEY_BLOCK                      625

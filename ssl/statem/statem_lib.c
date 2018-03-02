@@ -817,8 +817,9 @@ MSG_PROCESS_RETURN tls_process_finished(SSL *s, PACKET *pkt)
             }
         } else {
             if (!s->method->ssl3_enc->generate_master_secret(s,
-                    s->master_secret, s->handshake_secret, 0,
-                    &s->session->master_key_length)) {
+                    s->master_secret,
+                    (SSL_IS_OPTLS(s) ? s->early_secret : s->handshake_secret),
+                    0, &s->session->master_key_length)) {
                 /* SSLfatal() already called */
                 return MSG_PROCESS_ERROR;
             }

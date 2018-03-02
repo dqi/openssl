@@ -881,8 +881,9 @@ WORK_STATE ossl_statem_server_post_work(SSL *s, WORK_STATE wst)
 #endif
         if (SSL_IS_TLS13(s)) {
             if (!s->method->ssl3_enc->generate_master_secret(s,
-                        s->master_secret, s->handshake_secret, 0,
-                        &s->session->master_key_length)
+                        s->master_secret,
+                        (SSL_IS_OPTLS(s) ? s->early_secret : s->handshake_secret),
+                        0, &s->session->master_key_length)
                 || !s->method->ssl3_enc->change_cipher_state(s,
                         SSL3_CC_APPLICATION | SSL3_CHANGE_CIPHER_SERVER_WRITE))
             /* SSLfatal() already called */
