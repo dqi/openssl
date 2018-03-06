@@ -276,10 +276,10 @@ size_t optls_final_finish_mac(SSL *s, const char *str, size_t slen,
 
     if (str == s->method->ssl3_enc->server_finished_label)
         key = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL,
-                                   s->server_finished_secret, hashlen);
+                                   s->early_secret, hashlen);
     else
         key = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL,
-                                   s->client_finished_secret, hashlen);
+                                   s->early_secret, hashlen);
 
     if (key == NULL
             || ctx == NULL

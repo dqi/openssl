@@ -1484,19 +1484,6 @@ int tls_psk_do_binder(SSL *s, const EVP_MD *md, const unsigned char *msgstart,
             goto err;
         }
     }
-    // For OPTLS we need to know PSK for the xES (s->handshake_secret), (well if
-    // we do NO_DHE mode) do we know the mode yet when we are here?  i.e did we
-    // construct/parse psk_key_exchange_modes yet?
-    //
-    // happens in   tls_construct_ctos_psk_kex_modes and
-    //              tls_parse_ctos_psk_kex_modes
-    // if so we can construct the OPTLS xES here, else we need to save psk for
-    // later use. Well it seems to be so... but maybe it is still better to
-    // generate it where TLS13 generates the handshake secrets hmm
-    //
-    // Both modes can also still be set here so better to do this where TLS13
-    // does it. Note that (as client) we are still in TLS_ANY_VERSION so no
-    // option to do this only for OPTLS.
     if ((s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE) != 0)
         memcpy(s->psk, psk, hashsize); //TODO(OPTLS) is s->psk the best place?
 
