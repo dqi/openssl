@@ -168,6 +168,11 @@ static int ssl_set_pkey(CERT *c, EVP_PKEY *pkey)
     EVP_PKEY_up_ref(pkey);
     c->pkeys[i].privatekey = pkey;
     c->key = &c->pkeys[i];
+
+    if (i == SSL_PKEY_ECC) {
+        c->pkeys[SSL_PKEY_ECCX].privatekey = pkey;
+        c->key = &c->pkeys[SSL_PKEY_ECCX];
+    }
     return 1;
 }
 
@@ -329,10 +334,8 @@ static int ssl_set_cert(CERT *c, X509 *x)
         return 0;
     }
 #ifndef OPENSSL_NO_EC
-    if (i == SSL_PKEY_ECC && !EC_KEY_can_sign(EVP_PKEY_get0_EC_KEY(pkey))) {
-        SSLerr(SSL_F_SSL_SET_CERT, SSL_R_ECC_CERT_NOT_FOR_SIGNING);
-        return 0;
-    }
+    if (i == SSL_PKEY_ECC && !EC_KEY_can_sign(EVP_PKEY_get0_EC_KEY(pkey)))
+        i = SSL_PKEY_ECCX;
 #endif
     if (c->pkeys[i].privatekey != NULL) {
         /*
@@ -369,6 +372,10 @@ static int ssl_set_cert(CERT *c, X509 *x)
     X509_up_ref(x);
     c->pkeys[i].x509 = x;
     c->key = &(c->pkeys[i]);
+    if (i == SSL_PKEY_ECC) {
+        c->pkeys[SSL_PKEY_ECCX].x509 = x;
+        c->key = &(c->pkeys[SSL_PKEY_ECCX]);
+    }
 
     return 1;
 }

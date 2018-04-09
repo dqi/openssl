@@ -201,6 +201,8 @@
 # define SSL_aSRP                0x00000040U
 /* GOST R 34.10-2012 signature auth */
 # define SSL_aGOST12             0x00000080U
+/* DH Certificates auth */
+# define SSL_aDH                 0x00000100U
 /* Any appropriate signature auth (for TLS 1.3 ciphersuites) */
 # define SSL_aANY                0x00000000U
 /* All bits requiring a certificate */
@@ -383,7 +385,16 @@
 # define SSL_PKEY_GOST12_512     6
 # define SSL_PKEY_ED25519        7
 # define SSL_PKEY_ED448          8
-# define SSL_PKEY_NUM            9
+# define SSL_PKEY_X25519         9
+# define SSL_PKEY_X448           10
+# define SSL_PKEY_ECCX           11
+# define SSL_PKEY_NUM            12
+# define SSL_PKEY_DH_CERT_START  9
+/*
+ * Pseudo-constant. GOST cipher suites can use different certs for 1
+ * SSL_CIPHER. So let's see which one we have in fact.
+ */
+# define SSL_PKEY_GOST_EC SSL_PKEY_NUM+1
 
 /*-
  * SSL_kRSA <- RSA_ENC
@@ -1144,6 +1155,7 @@ struct ssl_st {
     /*
      * The TLS1.3 secrets.
      */
+    unsigned char ss_base_key[EVP_MAX_MD_SIZE];
     unsigned char early_secret[EVP_MAX_MD_SIZE];
     unsigned char handshake_secret[EVP_MAX_MD_SIZE];
     unsigned char master_secret[EVP_MAX_MD_SIZE];
@@ -1578,6 +1590,9 @@ typedef struct ssl3_state_st {
         /* Raw values of the cipher list from a client */
         unsigned char *ciphers_raw;
         size_t ciphers_rawlen;
+        /* Temporary storage for static secret */
+        unsigned char *ss;
+        size_t sslen;
         /* Temporary storage for premaster secret */
         unsigned char *pms;
         size_t pmslen;
@@ -2003,6 +2018,12 @@ typedef enum downgrade_en {
 #define TLSEXT_STATUSTYPE_nothing  -1
 
 /* Sigalgs values */
+#define TLSEXT_SIGALG_p256                                      0x0901
+#define TLSEXT_SIGALG_p384                                      0x0902
+#define TLSEXT_SIGALG_p521                                      0x0903
+#define TLSEXT_SIGALG_X25519                                    0x0904
+#define TLSEXT_SIGALG_X448                                      0x0905
+
 #define TLSEXT_SIGALG_ecdsa_secp256r1_sha256                    0x0403
 #define TLSEXT_SIGALG_ecdsa_secp384r1_sha384                    0x0503
 #define TLSEXT_SIGALG_ecdsa_secp521r1_sha512                    0x0603

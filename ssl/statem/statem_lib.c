@@ -218,15 +218,17 @@ static int get_cert_verify_tbs_data(SSL *s, unsigned char *tls13tbs,
 
 int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
 {
+    EVP_PKEY *mackey = NULL;
     EVP_PKEY *pkey = NULL;
     const EVP_MD *md = NULL;
     EVP_MD_CTX *mctx = NULL;
     EVP_PKEY_CTX *pctx = NULL;
-    size_t hdatalen = 0, siglen = 0;
+    size_t hdatalen = 0, siglen = 0, hashsize = EVP_MD_size(ssl_handshake_md(s));
     void *hdata;
     unsigned char *sig = NULL;
     unsigned char tls13tbs[TLS13_TBS_PREAMBLE_SIZE + EVP_MAX_MD_SIZE];
     const SIGALG_LOOKUP *lu = s->s3->tmp.sigalg;
+    unsigned char finishedkey[EVP_MAX_MD_SIZE];
 
     if (lu == NULL || s->s3->tmp.cert == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
@@ -259,56 +261,102 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    siglen = EVP_PKEY_size(pkey);
-    sig = OPENSSL_malloc(siglen);
-    if (sig == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
-                 ERR_R_MALLOC_FAILURE);
-        goto err;
-    }
+    /* So we either sign with our private key or MAC with SS-Base-Key, depends
+     * on which sig_alg we selected - Server side */
+    if (s->s3->tmp.sigalg->sig_idx >= SSL_PKEY_DH_CERT_START) {
+        /* We use MAC for authentication */
+        sig = OPENSSL_malloc(EVP_MAX_MD_SIZE);
+        if (sig == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
+                    ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
 
-    if (EVP_DigestSignInit(mctx, &pctx, md, NULL, pkey) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
-                 ERR_R_EVP_LIB);
-        goto err;
-    }
+        /* Generate the SS-Base-Key */
+        if (!tls13_generate_secret(s, ssl_handshake_md(s), NULL, s->s3->tmp.ss,
+                    s->s3->tmp.sslen, s->ss_base_key)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
 
-    if (lu->sig == EVP_PKEY_RSA_PSS) {
-        if (EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING) <= 0
-            || EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
-                                                RSA_PSS_SALTLEN_DIGEST) <= 0) {
+        /* Generate the finished key */
+        if (!tls13_derive_finishedkey(s, ssl_handshake_md(s), s->ss_base_key,
+                    finishedkey, hashsize)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
+
+        mackey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, finishedkey,
+                                              hashsize);
+        if (mackey == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PSK_DO_BINDER,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        /* Compute the MAC */
+        if (mackey == NULL
+                || mctx == NULL
+                || EVP_DigestSignInit(mctx, NULL, md, NULL, mackey) <= 0
+                || EVP_DigestSignUpdate(mctx, hdata, hdatalen) <= 0
+                || EVP_DigestSignFinal(mctx, sig, &siglen) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_FINAL_FINISH_MAC,
+                    ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+    } else {
+        /* We use signature for authentication */
+        siglen = EVP_PKEY_size(pkey);
+        sig = OPENSSL_malloc(siglen);
+        if (sig == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
+                    ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+
+        if (EVP_DigestSignInit(mctx, &pctx, md, NULL, pkey) <= 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
                      ERR_R_EVP_LIB);
             goto err;
         }
-    }
-    if (s->version == SSL3_VERSION) {
-        if (EVP_DigestSignUpdate(mctx, hdata, hdatalen) <= 0
-            || !EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
-                                (int)s->session->master_key_length,
-                                s->session->master_key)
-            || EVP_DigestSignFinal(mctx, sig, &siglen) <= 0) {
 
+        if (lu->sig == EVP_PKEY_RSA_PSS) {
+            if (EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING) <= 0
+                || EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
+                                                    RSA_PSS_SALTLEN_DIGEST) <= 0) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
+                         ERR_R_EVP_LIB);
+                goto err;
+            }
+        }
+        if (s->version == SSL3_VERSION) {
+            if (EVP_DigestSignUpdate(mctx, hdata, hdatalen) <= 0
+                || !EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
+                                    (int)s->session->master_key_length,
+                                    s->session->master_key)
+                || EVP_DigestSignFinal(mctx, sig, &siglen) <= 0) {
+
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
+                         ERR_R_EVP_LIB);
+                goto err;
+            }
+        } else if (EVP_DigestSign(mctx, sig, &siglen, hdata, hdatalen) <= 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
                      ERR_R_EVP_LIB);
             goto err;
         }
-    } else if (EVP_DigestSign(mctx, sig, &siglen, hdata, hdatalen) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
-                 ERR_R_EVP_LIB);
-        goto err;
-    }
 
 #ifndef OPENSSL_NO_GOST
-    {
-        int pktype = lu->sig;
+            {
+                int pktype = lu->sig;
 
-        if (pktype == NID_id_GostR3410_2001
-            || pktype == NID_id_GostR3410_2012_256
-            || pktype == NID_id_GostR3410_2012_512)
-            BUF_reverse(sig, NULL, siglen);
-    }
+                if (pktype == NID_id_GostR3410_2001
+                    || pktype == NID_id_GostR3410_2012_256
+                    || pktype == NID_id_GostR3410_2012_512)
+                    BUF_reverse(sig, NULL, siglen);
+            }
 #endif
+    }
 
     if (!WPACKET_sub_memcpy_u16(pkt, sig, siglen)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
@@ -348,6 +396,11 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
     unsigned char tls13tbs[TLS13_TBS_PREAMBLE_SIZE + EVP_MAX_MD_SIZE];
     EVP_MD_CTX *mctx = EVP_MD_CTX_new();
     EVP_PKEY_CTX *pctx = NULL;
+    int palloc = 0;
+    unsigned char finishedkey[EVP_MAX_MD_SIZE];
+    EVP_PKEY *mackey = NULL;
+    unsigned char computed_mac[EVP_MAX_MD_SIZE];
+    size_t computed_mac_len = 0, hashsize = EVP_MD_size(ssl_handshake_md(s));
 
     if (mctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
@@ -440,57 +493,150 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
 #ifdef SSL_DEBUG
     fprintf(stderr, "Using client verify alg %s\n", EVP_MD_name(md));
 #endif
-    if (EVP_DigestVerifyInit(mctx, &pctx, md, NULL, pkey) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
-                 ERR_R_EVP_LIB);
-        goto err;
-    }
-#ifndef OPENSSL_NO_GOST
-    {
-        int pktype = EVP_PKEY_id(pkey);
-        if (pktype == NID_id_GostR3410_2001
-            || pktype == NID_id_GostR3410_2012_256
-            || pktype == NID_id_GostR3410_2012_512) {
-            if ((gost_data = OPENSSL_malloc(len)) == NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS_PROCESS_CERT_VERIFY, ERR_R_MALLOC_FAILURE);
-                goto err;
-            }
-            BUF_reverse(gost_data, data, len);
-            data = gost_data;
-        }
-    }
-#endif
 
-    if (SSL_USE_PSS(s)) {
-        if (EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING) <= 0
-            || EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
-                                                RSA_PSS_SALTLEN_DIGEST) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
-                     ERR_R_EVP_LIB);
+    if (s->s3->tmp.peer_sigalg->sig_idx >= SSL_PKEY_DH_CERT_START) {
+        /* Build static secret and verify MAC - Client side */
+        size_t sslen = 0;
+        unsigned char *ss = NULL;
+        EVP_PKEY *privkey = s->s3->tmp.pkey;
+        EVP_PKEY *pubkey = NULL;
+        X509 *peer;
+        peer = s->session->peer;
+        pubkey = X509_get0_pubkey(peer);
+        if (privkey == NULL || pubkey == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+                     ERR_R_INTERNAL_ERROR);
             goto err;
         }
-    }
-    if (s->version == SSL3_VERSION) {
-        if (EVP_DigestVerifyUpdate(mctx, hdata, hdatalen) <= 0
-                || !EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
-                                    (int)s->session->master_key_length,
-                                    s->session->master_key)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
-                     ERR_R_EVP_LIB);
+
+        /* Build static secret */
+        pctx = EVP_PKEY_CTX_new(privkey, NULL);
+        if (pctx == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+                    ERR_R_MALLOC_FAILURE);
             goto err;
         }
-        if (EVP_DigestVerifyFinal(mctx, data, len) <= 0) {
-            SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
-                     SSL_R_BAD_SIGNATURE);
+        palloc = 1;
+
+        if (EVP_PKEY_derive_init(pctx) <= 0
+            || EVP_PKEY_derive_set_peer(pctx, pubkey) <= 0
+            || EVP_PKEY_derive(pctx, NULL, &sslen) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+                     ERR_R_INTERNAL_ERROR);
             goto err;
+        }
+
+        ss = OPENSSL_malloc(sslen);
+        if (ss == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+                     ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+
+        if (EVP_PKEY_derive(pctx, ss, &sslen) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        /* Save static secret */
+        s->s3->tmp.ss = ss;
+        s->s3->tmp.sslen = sslen;
+        ss = NULL;
+
+        /* Generate the SS-Base-Key */
+        if (!tls13_generate_secret(s, ssl_handshake_md(s), NULL, s->s3->tmp.ss,
+                    s->s3->tmp.sslen, s->ss_base_key)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
+
+        /* Generate the finished key */
+        if (!tls13_derive_finishedkey(s, ssl_handshake_md(s), s->ss_base_key,
+                    finishedkey, hashsize)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
+
+        mackey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, finishedkey,
+                                              hashsize);
+        if (mackey == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PSK_DO_BINDER,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        /* Compute the MAC */
+        if (mackey == NULL
+                || mctx == NULL
+                || EVP_DigestSignInit(mctx, NULL, md, NULL, mackey) <= 0
+                || EVP_DigestSignUpdate(mctx, hdata, hdatalen) <= 0
+                || EVP_DigestSignFinal(mctx, computed_mac, &computed_mac_len) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_FINAL_FINISH_MAC,
+                    ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        /* Verify the MAC */
+        if (CRYPTO_memcmp(data, computed_mac, computed_mac_len) != 0) {
+            SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_F_TLS_PROCESS_FINISHED,
+                    SSL_R_DIGEST_CHECK_FAILED);
+            return MSG_PROCESS_ERROR;
         }
     } else {
-        j = EVP_DigestVerify(mctx, data, len, hdata, hdatalen);
-        if (j <= 0) {
-            SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
-                     SSL_R_BAD_SIGNATURE);
+        /* Verify signature */
+        if (EVP_DigestVerifyInit(mctx, &pctx, md, NULL, pkey) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
+                     ERR_R_EVP_LIB);
             goto err;
+        }
+#ifndef OPENSSL_NO_GOST
+        {
+            int pktype = EVP_PKEY_id(pkey);
+            if (pktype == NID_id_GostR3410_2001
+                || pktype == NID_id_GostR3410_2012_256
+                || pktype == NID_id_GostR3410_2012_512) {
+                if ((gost_data = OPENSSL_malloc(len)) == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                             SSL_F_TLS_PROCESS_CERT_VERIFY, ERR_R_MALLOC_FAILURE);
+                    goto err;
+                }
+                BUF_reverse(gost_data, data, len);
+                data = gost_data;
+            }
+        }
+#endif
+
+        if (SSL_USE_PSS(s)) {
+            if (EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING) <= 0
+                || EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
+                                                    RSA_PSS_SALTLEN_DIGEST) <= 0) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
+                         ERR_R_EVP_LIB);
+                goto err;
+            }
+        }
+        if (s->version == SSL3_VERSION) {
+            if (EVP_DigestVerifyUpdate(mctx, hdata, hdatalen) <= 0
+                    || !EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
+                                        (int)s->session->master_key_length,
+                                        s->session->master_key)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
+                         ERR_R_EVP_LIB);
+                goto err;
+            }
+            if (EVP_DigestVerifyFinal(mctx, data, len) <= 0) {
+                SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
+                         SSL_R_BAD_SIGNATURE);
+                goto err;
+            }
+        } else {
+            j = EVP_DigestVerify(mctx, data, len, hdata, hdatalen);
+            if (j <= 0) {
+                SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
+                         SSL_R_BAD_SIGNATURE);
+                goto err;
+            }
         }
     }
 
@@ -498,6 +644,8 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
  err:
     BIO_free(s->s3->handshake_buffer);
     s->s3->handshake_buffer = NULL;
+    if (palloc)
+        EVP_PKEY_CTX_free(pctx);
     EVP_MD_CTX_free(mctx);
 #ifndef OPENSSL_NO_GOST
     OPENSSL_free(gost_data);

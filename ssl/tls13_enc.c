@@ -123,8 +123,8 @@ int tls13_derive_finishedkey(SSL *s, const EVP_MD *md,
  * pointed to by |outsecret|. Returns 1 on success  0 on failure.
  */
 int tls13_generate_secret(SSL *s, const EVP_MD *md,
-                          const unsigned char *prevsecret,
-                          const unsigned char *insecret,
+                          const unsigned char *prevsecret, /* salt */
+                          const unsigned char *insecret,   /* IKM */
                           size_t insecretlen,
                           unsigned char *outsecret)
 {
@@ -187,9 +187,7 @@ int tls13_generate_secret(SSL *s, const EVP_MD *md,
         prevsecretlen = mdlen;
     }
 
-    ret = EVP_PKEY_derive_init(pctx) <= 0
-            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY)
-               <= 0
+    ret = EVP_PKEY_derive_init(pctx) <= 0 || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0
             || EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0
             || EVP_PKEY_CTX_set1_hkdf_key(pctx, insecret, insecretlen) <= 0
             || EVP_PKEY_CTX_set1_hkdf_salt(pctx, prevsecret, prevsecretlen)

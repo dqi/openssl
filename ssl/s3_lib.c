@@ -4762,9 +4762,14 @@ EVP_PKEY *ssl_generate_param_group(uint16_t id)
 int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
 {
     int rv = 0;
+    int gsalloc = 0;
     unsigned char *pms = NULL;
+    unsigned char *ss = NULL;
     size_t pmslen = 0;
+    size_t sslen = 0;
     EVP_PKEY_CTX *pctx;
+    EVP_PKEY_CTX *gsctx;
+    EVP_PKEY *server_static_secret;
 
     if (privkey == NULL || pubkey == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
@@ -4798,6 +4803,49 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
     if (gensecret) {
         /* SSLfatal() called as appropriate in the below functions */
         if (SSL_IS_TLS13(s)) {
+            /* If we are the server AND not resuming AND doing DH auth THEN we
+             * need to generate the static secret */
+            if (s->server && !s->hit && s->s3->tmp.sigalg->sig_idx >= SSL_PKEY_DH_CERT_START) {
+                server_static_secret = s->s3->tmp.cert->privatekey;
+                if (server_static_secret == NULL || pubkey == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                             ERR_R_INTERNAL_ERROR);
+                    return 0;
+                }
+                gsctx = EVP_PKEY_CTX_new(server_static_secret, NULL);
+                if (gsctx == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                            ERR_R_MALLOC_FAILURE);
+                    goto err;
+                }
+                gsalloc = 1;
+
+                if (EVP_PKEY_derive_init(gsctx) <= 0
+                        || EVP_PKEY_derive_set_peer(gsctx, pubkey) <= 0
+                        || EVP_PKEY_derive(gsctx, NULL, &sslen) <= 0) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                            ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+
+                ss = OPENSSL_malloc(sslen);
+                if (ss == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                            ERR_R_MALLOC_FAILURE);
+                    goto err;
+                }
+
+                if (EVP_PKEY_derive(gsctx, ss, &sslen) <= 0) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_DERIVE,
+                            ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+
+                /* Save static secret */
+                s->s3->tmp.ss = ss;
+                s->s3->tmp.sslen = sslen;
+                ss = NULL;
+            }
             /*
              * If we are resuming then we already generated the early secret
              * when we created the ClientHello, so don't recreate it.
@@ -4823,7 +4871,10 @@ int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
 
  err:
     OPENSSL_clear_free(pms, pmslen);
+    OPENSSL_clear_free(ss, sslen);
     EVP_PKEY_CTX_free(pctx);
+    if (gsalloc)
+        EVP_PKEY_CTX_free(gsctx);
     return rv;
 }
 

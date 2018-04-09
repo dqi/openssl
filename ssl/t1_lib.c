@@ -631,6 +631,11 @@ static int tls1_check_cert_param(SSL *s, X509 *x, int set_ee_md)
 /* Default sigalg schemes */
 static const uint16_t tls12_sigalgs[] = {
 #ifndef OPENSSL_NO_EC
+    TLSEXT_SIGALG_p256,
+    TLSEXT_SIGALG_p384,
+    TLSEXT_SIGALG_p521,
+    TLSEXT_SIGALG_X25519,
+    TLSEXT_SIGALG_X448,
     TLSEXT_SIGALG_ecdsa_secp256r1_sha256,
     TLSEXT_SIGALG_ecdsa_secp384r1_sha384,
     TLSEXT_SIGALG_ecdsa_secp521r1_sha512,
@@ -679,6 +684,21 @@ static const uint16_t suiteb_sigalgs[] = {
 
 static const SIGALG_LOOKUP sigalg_lookup_tbl[] = {
 #ifndef OPENSSL_NO_EC
+    {"sig_p256", TLSEXT_SIGALG_p256,
+     NID_undef, -1, EVP_PKEY_ECX, SSL_PKEY_ECCX,
+     NID_undef, NID_X9_62_prime256v1},
+    {"sig_p384", TLSEXT_SIGALG_p384,
+     NID_undef, -1, EVP_PKEY_ECX, SSL_PKEY_ECCX,
+     NID_undef, NID_secp384r1},
+    {"sig_p521", TLSEXT_SIGALG_p521,
+     NID_undef, -1, EVP_PKEY_ECX, SSL_PKEY_ECCX,
+     NID_undef, NID_secp521r1},
+    {"sig_x25519", TLSEXT_SIGALG_X25519,
+     NID_undef, -1, EVP_PKEY_X25519, SSL_PKEY_X25519,
+     NID_undef, NID_undef},
+    {"sig_x448", TLSEXT_SIGALG_X448,
+     NID_undef, -1, EVP_PKEY_X448, SSL_PKEY_X448,
+     NID_undef, NID_undef},
     {"ecdsa_secp256r1_sha256", TLSEXT_SIGALG_ecdsa_secp256r1_sha256,
      NID_sha256, SSL_MD_SHA256_IDX, EVP_PKEY_EC, SSL_PKEY_ECC,
      NID_ecdsa_with_SHA256, NID_X9_62_prime256v1},
