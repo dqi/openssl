@@ -232,7 +232,16 @@ int tls13_generate_master_secret(SSL *s, unsigned char *out,
 
     *secret_size = EVP_MD_size(md);
     /* Calls SSLfatal() if required */
-    return tls13_generate_secret(s, md, prev, NULL, 0, out);
+    if (!s->server && !s->hit && s->s3->tmp.peer_sigalg->sig_idx >=
+            SSL_PKEY_DH_CERT_START)
+        return tls13_generate_secret(s, md, prev, s->s3->tmp.ss,
+                s->s3->tmp.sslen, out);
+    else if (s->server && !s->hit && s->s3->tmp.sigalg->sig_idx >=
+            SSL_PKEY_DH_CERT_START)
+        return tls13_generate_secret(s, md, prev, s->s3->tmp.ss,
+                s->s3->tmp.sslen, out);
+    else
+        return tls13_generate_secret(s, md, prev, NULL, 0, out);
 }
 
 /*

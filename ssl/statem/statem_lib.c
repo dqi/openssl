@@ -272,15 +272,16 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
             goto err;
         }
 
+        md = ssl_handshake_md(s);
         /* Generate the SS-Base-Key */
-        if (!tls13_generate_secret(s, ssl_handshake_md(s), NULL, s->s3->tmp.ss,
+        if (!tls13_generate_secret(s, md, NULL, s->s3->tmp.ss,
                     s->s3->tmp.sslen, s->ss_base_key)) {
             /* SSLfatal() already called */
             goto err;
         }
 
         /* Generate the finished key */
-        if (!tls13_derive_finishedkey(s, ssl_handshake_md(s), s->ss_base_key,
+        if (!tls13_derive_finishedkey(s, md, s->ss_base_key,
                     finishedkey, hashsize)) {
             /* SSLfatal() already called */
             goto err;
@@ -544,15 +545,16 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
         s->s3->tmp.sslen = sslen;
         ss = NULL;
 
+        md = ssl_handshake_md(s);
         /* Generate the SS-Base-Key */
-        if (!tls13_generate_secret(s, ssl_handshake_md(s), NULL, s->s3->tmp.ss,
+        if (!tls13_generate_secret(s, md, NULL, s->s3->tmp.ss,
                     s->s3->tmp.sslen, s->ss_base_key)) {
             /* SSLfatal() already called */
             goto err;
         }
 
         /* Generate the finished key */
-        if (!tls13_derive_finishedkey(s, ssl_handshake_md(s), s->ss_base_key,
+        if (!tls13_derive_finishedkey(s, md, s->ss_base_key,
                     finishedkey, hashsize)) {
             /* SSLfatal() already called */
             goto err;
