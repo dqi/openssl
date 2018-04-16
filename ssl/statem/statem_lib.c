@@ -290,7 +290,7 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
         mackey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, finishedkey,
                                               hashsize);
         if (mackey == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PSK_DO_BINDER,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -301,7 +301,7 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
                 || EVP_DigestSignInit(mctx, NULL, md, NULL, mackey) <= 0
                 || EVP_DigestSignUpdate(mctx, hdata, hdatalen) <= 0
                 || EVP_DigestSignFinal(mctx, sig, &siglen) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_FINAL_FINISH_MAC,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
                     ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -505,7 +505,7 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
         peer = s->session->peer;
         pubkey = X509_get0_pubkey(peer);
         if (privkey == NULL || pubkey == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -513,7 +513,7 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
         /* Build static secret */
         pctx = EVP_PKEY_CTX_new(privkey, NULL);
         if (pctx == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                     ERR_R_MALLOC_FAILURE);
             goto err;
         }
@@ -522,20 +522,20 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
         if (EVP_PKEY_derive_init(pctx) <= 0
             || EVP_PKEY_derive_set_peer(pctx, pubkey) <= 0
             || EVP_PKEY_derive(pctx, NULL, &sslen) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
 
         ss = OPENSSL_malloc(sslen);
         if (ss == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                      ERR_R_MALLOC_FAILURE);
             goto err;
         }
 
         if (EVP_PKEY_derive(pctx, ss, &sslen) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SERVER_CERTIFICATE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -563,7 +563,7 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
         mackey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, finishedkey,
                                               hashsize);
         if (mackey == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PSK_DO_BINDER,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -574,16 +574,16 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
                 || EVP_DigestSignInit(mctx, NULL, md, NULL, mackey) <= 0
                 || EVP_DigestSignUpdate(mctx, hdata, hdatalen) <= 0
                 || EVP_DigestSignFinal(mctx, computed_mac, &computed_mac_len) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_FINAL_FINISH_MAC,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                     ERR_R_INTERNAL_ERROR);
             goto err;
         }
 
         /* Verify the MAC */
         if (CRYPTO_memcmp(data, computed_mac, computed_mac_len) != 0) {
-            SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_F_TLS_PROCESS_FINISHED,
+            SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                     SSL_R_DIGEST_CHECK_FAILED);
-            return MSG_PROCESS_ERROR;
+            goto err;
         }
     } else {
         /* Verify signature */
