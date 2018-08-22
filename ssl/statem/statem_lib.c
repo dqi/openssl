@@ -498,7 +498,11 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
         goto err;
     }
 
-    j = EVP_PKEY_size(pkey);
+    if (s->s3->tmp.peer_sigalg->sig_idx >= SSL_PKEY_DH_CERT_START)
+        j = EVP_MD_size(ssl_handshake_md(s));
+    else
+        j = EVP_PKEY_size(pkey);
+
     if (((int)len > j) || ((int)PACKET_remaining(pkt) > j)
         || (PACKET_remaining(pkt) == 0)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
