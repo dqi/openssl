@@ -82,6 +82,105 @@ const OPTIONS s_time_options[] = {
 #define START   0
 #define STOP    1
 
+/* Default PSK identity and key */
+static char *psk_identity = "Client_identity";
+static unsigned int psk_client_cb(SSL *ssl, const char *hint, char *identity,
+                                  unsigned int max_identity_len,
+                                  unsigned char *psk,
+                                  unsigned int max_psk_len)
+{
+    psk_key = "1234";
+    int ret;
+    long key_len;
+    unsigned char *key;
+
+    /*
+     * lookup PSK identity and PSK key based on the given identity hint here
+     */
+    ret = BIO_snprintf(identity, max_identity_len, "%s", psk_identity);
+    if (ret < 0 || (unsigned int)ret > max_identity_len)
+        goto out_err;
+
+    /* convert the PSK key to binary */
+    key = OPENSSL_hexstr2buf(psk_key, &key_len);
+    if (key == NULL) {
+        BIO_printf(bio_err, "Could not convert PSK key '%s' to buffer\n",
+                   psk_key);
+        return 0;
+    }
+    if (max_psk_len > INT_MAX || key_len > (long)max_psk_len) {
+        BIO_printf(bio_err,
+                   "psk buffer of callback is too small (%d) for key (%ld)\n",
+                   max_psk_len, key_len);
+        OPENSSL_free(key);
+        return 0;
+    }
+
+    memcpy(psk, key, key_len);
+    OPENSSL_free(key);
+
+    return key_len;
+ out_err:
+    return 0;
+}
+
+static int psk_use_session_cb(SSL *s, const EVP_MD *md,
+                              const unsigned char **id, size_t *idlen,
+                              SSL_SESSION **sess)
+{
+    psk_key = "1234";
+    SSL_SESSION *usesess = NULL;
+    const SSL_CIPHER *cipher = NULL;
+
+    long key_len;
+    unsigned char *key = OPENSSL_hexstr2buf(psk_key, &key_len);
+
+    if (key == NULL) {
+        BIO_printf(bio_err, "Could not convert PSK key '%s' to buffer\n",
+                   psk_key);
+        return 0;
+    }
+
+    /* We default to SHA-256 */
+    cipher = SSL_CIPHER_find(s, tls13_aes128gcmsha256_id);
+    if (cipher == NULL) {
+        BIO_printf(bio_err, "Error finding suitable ciphersuite\n");
+        return 0;
+    }
+
+    usesess = SSL_SESSION_new();
+    if (usesess == NULL
+            || !SSL_SESSION_set1_master_key(usesess, key, key_len)
+            || !SSL_SESSION_set_cipher(usesess, cipher)
+            || !SSL_SESSION_set_protocol_version(usesess, TLS1_3_VERSION)) {
+        OPENSSL_free(key);
+        goto err;
+    }
+    OPENSSL_free(key);
+
+    cipher = SSL_SESSION_get0_cipher(usesess);
+    if (cipher == NULL)
+        goto err;
+
+    if (md != NULL && SSL_CIPHER_get_handshake_digest(cipher) != md) {
+        /* PSK not usable, ignore it */
+        *id = NULL;
+        *idlen = 0;
+        *sess = NULL;
+        SSL_SESSION_free(usesess);
+    } else {
+        *sess = usesess;
+        *id = (unsigned char *)psk_identity;
+        *idlen = strlen(psk_identity);
+    }
+
+    return 1;
+
+ err:
+    SSL_SESSION_free(usesess);
+    return 0;
+}
+
 static double tm_Time_F(int s)
 {
     return app_tminterval(s, 1);
@@ -248,8 +347,8 @@ int s_time_main(int argc, char **argv)
             else
                 ver = '*';
         }
-        fputc(ver, stdout);
-        fflush(stdout);
+        /* fputc(ver, stdout); */
+        /* fflush(stdout); */
 
         SSL_free(scon);
         scon = NULL;
@@ -272,6 +371,9 @@ int s_time_main(int argc, char **argv)
     if (!(perform & 2))
         goto end;
     printf("\n\nNow timing with session id reuse.\n");
+
+    SSL_CTX_set_psk_client_callback(ctx, psk_client_cb);
+    SSL_CTX_set_psk_use_session_callback(ctx, psk_use_session_cb);
 
     /* Get an SSL object so we can reuse the session id */
     if ((scon = doConnection(NULL, host, ctx)) == NULL) {
@@ -328,8 +430,8 @@ int s_time_main(int argc, char **argv)
             else
                 ver = '*';
         }
-        fputc(ver, stdout);
-        fflush(stdout);
+        /* fputc(ver, stdout); */
+        /* fflush(stdout); */
     }
     totalTime += tm_Time_F(STOP); /* Add the time for this iteration */
 
