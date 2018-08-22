@@ -218,6 +218,17 @@ static int get_cert_verify_tbs_data(SSL *s, unsigned char *tls13tbs,
 
 int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
 {
+#ifdef MYBENCH
+    uint64_t tmp_count1 = 0;
+    uint64_t tmp_count2 = 0;
+    asm volatile ( "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0\n\t"
+            "mfence"
+            : "=a" (tmp_count1)
+            :
+            : "rdx");
+#endif
     EVP_PKEY *mackey = NULL;
     EVP_PKEY *pkey = NULL;
     const EVP_MD *md = NULL;
@@ -373,6 +384,20 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
 
     OPENSSL_free(sig);
     EVP_MD_CTX_free(mctx);
+
+#ifdef MYBENCH
+    asm volatile ( "mfence\n\t"
+            "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0"
+            : "=a" (tmp_count2)
+            :
+            : "rdx");
+    if (s->server) {
+        s->server_cyclecount += (tmp_count2 - tmp_count1);
+    }
+#endif
+
     return 1;
  err:
     OPENSSL_free(sig);
@@ -657,6 +682,17 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
 
 int tls_construct_finished(SSL *s, WPACKET *pkt)
 {
+#ifdef MYBENCH
+    uint64_t tmp_count1 = 0;
+    uint64_t tmp_count2 = 0;
+    asm volatile ( "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0\n\t"
+            "mfence"
+            : "=a" (tmp_count1)
+            :
+            : "rdx");
+#endif
     size_t finish_md_len;
     const char *sender;
     size_t slen;
@@ -731,6 +767,19 @@ int tls_construct_finished(SSL *s, WPACKET *pkt)
         s->s3->previous_server_finished_len = finish_md_len;
     }
 
+#ifdef MYBENCH
+    asm volatile ( "mfence\n\t"
+            "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0"
+            : "=a" (tmp_count2)
+            :
+            : "rdx");
+    if (s->server) {
+        s->server_cyclecount += (tmp_count2 - tmp_count1);
+        fprintf(stderr, "%lu\n", s->server_cyclecount);
+    }
+#endif
     return 1;
 }
 

@@ -1467,6 +1467,8 @@ struct ssl_st {
     /* Callback to determine if early_data is acceptable or not */
     SSL_allow_early_data_cb_fn allow_early_data_cb;
     void *allow_early_data_cb_data;
+
+    uint64_t server_cyclecount;
 };
 
 /*

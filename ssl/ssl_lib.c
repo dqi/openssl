@@ -3590,6 +3590,7 @@ void SSL_set_accept_state(SSL *s)
     ossl_statem_clear(s);
     s->handshake_func = s->method->ssl_accept;
     clear_ciphers(s);
+    s->server_cyclecount = 0;
 }
 
 void SSL_set_connect_state(SSL *s)

@@ -1706,7 +1706,34 @@ EXT_RETURN tls_construct_stoc_key_share(SSL *s, WPACKET *pkt,
         return EXT_RETURN_FAIL;
     }
 
+
+#ifdef MYBENCH
+    uint64_t tmp_count1 = 0;
+    uint64_t tmp_count2 = 0;
+    asm volatile ( "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0\n\t"
+            "mfence"
+            : "=a" (tmp_count1)
+            :
+            : "rdx");
+#endif
+
     skey = ssl_generate_pkey(ckey);
+
+#ifdef MYBENCH
+    asm volatile ( "mfence\n\t"
+            "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0"
+            : "=a" (tmp_count2)
+            :
+            : "rdx");
+    if (s->server) {
+        s->server_cyclecount += (tmp_count2 - tmp_count1);
+    }
+#endif
+
     if (skey == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_STOC_KEY_SHARE,
                  ERR_R_MALLOC_FAILURE);
@@ -1732,12 +1759,38 @@ EXT_RETURN tls_construct_stoc_key_share(SSL *s, WPACKET *pkt,
     }
     OPENSSL_free(encodedPoint);
 
+#ifdef MYBENCH
+    tmp_count1 = 0;
+    tmp_count2 = 0;
+    asm volatile ( "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0\n\t"
+            "mfence"
+            : "=a" (tmp_count1)
+            :
+            : "rdx");
+#endif
+
     /* This causes the crypto state to be updated based on the derived keys */
     s->s3->tmp.pkey = skey;
     if (ssl_derive(s, skey, ckey, 1) == 0) {
         /* SSLfatal() already called */
         return EXT_RETURN_FAIL;
     }
+
+#ifdef MYBENCH
+    asm volatile ( "mfence\n\t"
+            "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0"
+            : "=a" (tmp_count2)
+            :
+            : "rdx");
+    if (s->server) {
+        s->server_cyclecount += (tmp_count2 - tmp_count1);
+    }
+#endif
+
     return EXT_RETURN_SENT;
 #else
     return EXT_RETURN_FAIL;
