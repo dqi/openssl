@@ -804,7 +804,7 @@ int tls_construct_finished(SSL *s, WPACKET *pkt)
             : "rdx");
     if (s->server) {
         s->server_cyclecount += (tmp_count2 - tmp_count1);
-        fprintf(stderr, "%lu\n", s->server_cyclecount);
+        fprintf(stdout, "server_cyclecount: %lu\n", s->server_cyclecount);
     }
 #endif
     return 1;
