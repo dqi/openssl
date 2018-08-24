@@ -3600,6 +3600,7 @@ void SSL_set_connect_state(SSL *s)
     ossl_statem_clear(s);
     s->handshake_func = s->method->ssl_connect;
     clear_ciphers(s);
+    s->client_cyclecount = 0;
 }
 
 int ssl_undefined_function(SSL *s)
