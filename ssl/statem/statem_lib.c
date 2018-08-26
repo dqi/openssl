@@ -394,6 +394,7 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
             :
             : "rdx");
     if (s->server) {
+        printf("tls_construct_cert_verify: %lu\n (server)", tmp_count2 - tmp_count1);
         s->server_cyclecount += (tmp_count2 - tmp_count1);
     }
 #endif
@@ -701,6 +702,7 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
             :
             : "rdx");
     if (!s->server) {
+        printf("tls_process_cert_verify: %lu (client)\n", tmp_count2 - tmp_count1);
         s->client_cyclecount += (tmp_count2 - tmp_count1);
     }
 #endif
@@ -804,6 +806,7 @@ int tls_construct_finished(SSL *s, WPACKET *pkt)
             : "rdx");
     if (s->server) {
         s->server_cyclecount += (tmp_count2 - tmp_count1);
+        printf("tls_construct_finished: %lu (server)\n", tmp_count2 - tmp_count1);
         fprintf(stdout, "server_cyclecount: %lu\n", s->server_cyclecount);
     }
 #endif
@@ -1092,6 +1095,7 @@ MSG_PROCESS_RETURN tls_process_finished(SSL *s, PACKET *pkt)
             : "rdx");
     if (!s->server) {
         s->client_cyclecount += (tmp_count2 - tmp_count1);
+        printf("tls_process_finished: %lu (client)\n", tmp_count2 - tmp_count1);
         fprintf(stdout, "client_cyclecount: %lu\n", s->client_cyclecount);
     }
 #endif
