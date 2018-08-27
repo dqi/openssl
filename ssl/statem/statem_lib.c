@@ -394,7 +394,7 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
             :
             : "rdx");
     if (s->server) {
-        printf("tls_construct_cert_verify: %lu\n (server)", tmp_count2 - tmp_count1);
+        printf("tls_construct_cert_verify: %lu (server)\n", tmp_count2 - tmp_count1);
         s->server_cyclecount += (tmp_count2 - tmp_count1);
     }
 #endif
