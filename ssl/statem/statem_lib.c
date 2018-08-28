@@ -218,17 +218,6 @@ static int get_cert_verify_tbs_data(SSL *s, unsigned char *tls13tbs,
 
 int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
 {
-#ifdef MYBENCH
-    uint64_t tmp_count1 = 0;
-    uint64_t tmp_count2 = 0;
-    asm volatile ( "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0\n\t"
-            "mfence"
-            : "=a" (tmp_count1)
-            :
-            : "rdx");
-#endif
     EVP_PKEY *mackey = NULL;
     EVP_PKEY *pkey = NULL;
     const EVP_MD *md = NULL;
@@ -272,6 +261,17 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
+#ifdef MYBENCH
+    uint64_t tmp_count1 = 0;
+    uint64_t tmp_count2 = 0;
+    asm volatile ( "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0\n\t"
+            "mfence"
+            : "=a" (tmp_count1)
+            :
+            : "rdx");
+#endif
     /* So we either sign with our private key or MAC with SS-Base-Key, depends
      * on which sig_alg we selected - Server side */
     if (s->s3->tmp.sigalg->sig_idx >= SSL_PKEY_DH_CERT_START) {
@@ -369,6 +369,20 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
             }
 #endif
     }
+#ifdef MYBENCH
+    asm volatile ( "mfence\n\t"
+            "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0"
+            : "=a" (tmp_count2)
+            :
+            : "rdx");
+    if (s->server) {
+        printf("tls_construct_cert_verify: %lu (server)\n", tmp_count2 - tmp_count1);
+        s->server_cyclecount += (tmp_count2 - tmp_count1);
+        fprintf(stdout, "server_cyclecount: %lu\n", s->server_cyclecount);
+    }
+#endif
 
     if (!WPACKET_sub_memcpy_u16(pkt, sig, siglen)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
@@ -384,20 +398,6 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
 
     OPENSSL_free(sig);
     EVP_MD_CTX_free(mctx);
-
-#ifdef MYBENCH
-    asm volatile ( "mfence\n\t"
-            "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0"
-            : "=a" (tmp_count2)
-            :
-            : "rdx");
-    if (s->server) {
-        printf("tls_construct_cert_verify: %lu (server)\n", tmp_count2 - tmp_count1);
-        s->server_cyclecount += (tmp_count2 - tmp_count1);
-    }
-#endif
 
     return 1;
  err:
@@ -693,6 +693,7 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
     if (!s->server) {
         printf("tls_process_cert_verify: %lu (client)\n", tmp_count2 - tmp_count1);
         s->client_cyclecount += (tmp_count2 - tmp_count1);
+        fprintf(stdout, "client_cyclecount: %lu\n", s->client_cyclecount);
     }
 #endif
 
@@ -711,17 +712,6 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
 
 int tls_construct_finished(SSL *s, WPACKET *pkt)
 {
-#ifdef MYBENCH
-    uint64_t tmp_count1 = 0;
-    uint64_t tmp_count2 = 0;
-    asm volatile ( "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0\n\t"
-            "mfence"
-            : "=a" (tmp_count1)
-            :
-            : "rdx");
-#endif
     size_t finish_md_len;
     const char *sender;
     size_t slen;
@@ -796,20 +786,6 @@ int tls_construct_finished(SSL *s, WPACKET *pkt)
         s->s3->previous_server_finished_len = finish_md_len;
     }
 
-#ifdef MYBENCH
-    asm volatile ( "mfence\n\t"
-            "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0"
-            : "=a" (tmp_count2)
-            :
-            : "rdx");
-    if (s->server) {
-        s->server_cyclecount += (tmp_count2 - tmp_count1);
-        printf("tls_construct_finished: %lu (server)\n", tmp_count2 - tmp_count1);
-        fprintf(stdout, "server_cyclecount: %lu\n", s->server_cyclecount);
-    }
-#endif
     return 1;
 }
 
@@ -973,17 +949,6 @@ MSG_PROCESS_RETURN tls_process_change_cipher_spec(SSL *s, PACKET *pkt)
 
 MSG_PROCESS_RETURN tls_process_finished(SSL *s, PACKET *pkt)
 {
-#ifdef MYBENCH
-    uint64_t tmp_count1 = 0;
-    uint64_t tmp_count2 = 0;
-    asm volatile ( "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0\n\t"
-            "mfence"
-            : "=a" (tmp_count1)
-            :
-            : "rdx");
-#endif
     size_t md_len;
 
 
@@ -1085,20 +1050,6 @@ MSG_PROCESS_RETURN tls_process_finished(SSL *s, PACKET *pkt)
         }
     }
 
-#ifdef MYBENCH
-    asm volatile ( "mfence\n\t"
-            "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0"
-            : "=a" (tmp_count2)
-            :
-            : "rdx");
-    if (!s->server) {
-        s->client_cyclecount += (tmp_count2 - tmp_count1);
-        printf("tls_process_finished: %lu (client)\n", tmp_count2 - tmp_count1);
-        fprintf(stdout, "client_cyclecount: %lu\n", s->client_cyclecount);
-    }
-#endif
     return MSG_PROCESS_FINISHED_READING;
 }
 
