@@ -173,8 +173,8 @@ extern "C" {
 # define SSL_DEFAULT_CIPHER_LIST "ALL:!COMPLEMENTOFDEFAULT:!eNULL"
 /* This is the default set of TLSv1.3 ciphersuites */
 # if !defined(OPENSSL_NO_CHACHA) && !defined(OPENSSL_NO_POLY1305)
-#  define TLS_DEFAULT_CIPHERSUITES "TLS_AES_256_GCM_SHA384:" \
-                                   "TLS_CHACHA20_POLY1305_SHA256:" \
+#  define TLS_DEFAULT_CIPHERSUITES "TLS_CHACHA20_POLY1305_SHA256:" \
+                                   "TLS_AES_256_GCM_SHA384:" \
                                    "TLS_AES_128_GCM_SHA256"
 # else
 #  define TLS_DEFAULT_CIPHERSUITES "TLS_AES_256_GCM_SHA384:" \
