@@ -596,31 +596,7 @@ static int add_key_share(SSL *s, WPACKET *pkt, unsigned int curve_id)
          */
         key_share_key = s->s3->tmp.pkey;
     } else {
-#ifdef MYBENCH
-    uint64_t tmp_count1 = 0;
-    uint64_t tmp_count2 = 0;
-    asm volatile ( "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0\n\t"
-            "mfence"
-            : "=a" (tmp_count1)
-            :
-            : "rdx");
-#endif
         key_share_key = ssl_generate_pkey_group(s, curve_id);
-#ifdef MYBENCH
-    asm volatile ( "mfence\n\t"
-            "rdtsc\n\t"
-            "shl $32, %%rdx\n\t"
-            "or %%rdx, %0"
-            : "=a" (tmp_count2)
-            :
-            : "rdx");
-    if (!s->server) {
-        printf("ssl_generate_pkey_group: %lu (client)\n", tmp_count2 - tmp_count1);
-        s->client_cyclecount += (tmp_count2 - tmp_count1);
-    }
-#endif
         if (key_share_key == NULL) {
             /* SSLfatal() already called */
             return 0;

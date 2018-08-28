@@ -4708,12 +4708,36 @@ EVP_PKEY *ssl_generate_pkey_group(SSL *s, uint16_t id)
                  ERR_R_EVP_LIB);
         goto err;
     }
+#ifdef MYBENCH
+    uint64_t tmp_count1 = 0;
+    uint64_t tmp_count2 = 0;
+    asm volatile ( "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0\n\t"
+            "mfence"
+            : "=a" (tmp_count1)
+            :
+            : "rdx");
+#endif
     if (EVP_PKEY_keygen(pctx, &pkey) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL_GENERATE_PKEY_GROUP,
                  ERR_R_EVP_LIB);
         EVP_PKEY_free(pkey);
         pkey = NULL;
     }
+#ifdef MYBENCH
+    asm volatile ( "mfence\n\t"
+            "rdtsc\n\t"
+            "shl $32, %%rdx\n\t"
+            "or %%rdx, %0"
+            : "=a" (tmp_count2)
+            :
+            : "rdx");
+    if (!s->server) {
+        printf("ssl_generate_pkey_group: %lu (client)\n", tmp_count2 - tmp_count1);
+        s->client_cyclecount += (tmp_count2 - tmp_count1);
+    }
+#endif
 
  err:
     EVP_PKEY_CTX_free(pctx);
