@@ -1009,9 +1009,12 @@ int tls12_check_peer_sigalg(SSL *s, uint16_t sig, EVP_PKEY *pkey)
     /* Check the sigalg is consistent with the key OID */
     if (!ssl_cert_lookup_by_nid(EVP_PKEY_id(pkey), &cidx)
             || lu->sig_idx != (int)cidx) {
-        SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_F_TLS12_CHECK_PEER_SIGALG,
-                 SSL_R_WRONG_SIGNATURE_TYPE);
-        return 0;
+        /* NIST Curves can be used for both signing and OPTLS */
+        if (lu->sig_idx != SSL_PKEY_ECCX || (int)cidx != SSL_PKEY_ECC) {
+            SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_F_TLS12_CHECK_PEER_SIGALG,
+                     SSL_R_WRONG_SIGNATURE_TYPE);
+            return 0;
+        }
     }
 
 #ifndef OPENSSL_NO_EC
